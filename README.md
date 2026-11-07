@@ -97,4 +97,3 @@ Dependency có license riêng trong `THIRD_PARTY_NOTICES.md` và `third_party/li
 Không đồng nhất MIT source với quyền dùng mọi asset hoặc thương hiệu WoC.
 Không có Git history/remote upstream trong folder. `.gitignore` loại dependencies,
 build, cache, credentials và database test khỏi repo mới.
-.
