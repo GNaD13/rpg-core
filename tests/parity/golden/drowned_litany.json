@@ -1,0 +1,1443 @@
+{
+  "scenario": "drowned_litany",
+  "seed": 3131,
+  "sampleEvery": 10,
+  "ticks": 507,
+  "coverage": [
+    "drowned_litany heroic run (ruin affix roll + module advance)",
+    "bell-rope pull -> Bell Shock on live cantors (delveInteract)",
+    "Sister Nhalia driver: Blackwater Mark + Tolling Bells volley rng draws",
+    "cantor phases + Final Bell + rite choose -> playback pulses"
+  ],
+  "draws": 4476,
+  "drawDigest": "c567aaa7",
+  "frames": [
+    {
+      "tick": 0,
+      "time": 0,
+      "nextId": 1012,
+      "state": "caf53a89",
+      "events": "741638a5",
+      "rng": {
+        "draws": 0,
+        "digest": "811c9dc5"
+      },
+      "label": "init",
+      "players": [
+        {
+          "activeLoadout": -1,
+          "archetype": {},
+          "arena2v2Rating": 1500,
+          "arenaRating": 1500,
+          "autoEquip": true,
+          "bags": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "bank": {
+            "socketBags": [
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "bgRating": 1500,
+          "buddies": {
+            "names": {}
+          },
+          "cls": "warrior",
+          "companionUpgrades": {},
+          "counters": {},
+          "craftDaily": {},
+          "craftSkills": {},
+          "deedStats": {
+            "counters": {},
+            "dungeonClears": {},
+            "itemsDiscovered": [
+              "baked_bread",
+              "eastbrook_buckler",
+              "recruit_tunic",
+              "worn_sword"
+            ]
+          },
+          "delveClears": {},
+          "delveDaily": {},
+          "entityId": 1004,
+          "equipment": {
+            "chest": "recruit_tunic",
+            "mainhand": "worn_sword",
+            "offhand": "eastbrook_buckler"
+          },
+          "equipmentInstance": {},
+          "factionCurrencies": {},
+          "factions": {},
+          "gatheringProficiency": {},
+          "gliderRecords": {},
+          "harvestPreference": {
+            "kind": "all"
+          },
+          "heroicDaily": {},
+          "inventory": [
+            {
+              "count": 5,
+              "itemId": "baked_bread"
+            }
+          ],
+          "mailWelcomed": true,
+          "nodeHarvestReadyAt": {},
+          "recipesGrandfathered": true,
+          "reliquary": {
+            "counts": {},
+            "firstFind": {}
+          },
+          "talents": {
+            "rows": {}
+          },
+          "townFocus": {},
+          "vault": {
+            "stock": {}
+          },
+          "vaultAttemptDurable": true,
+          "worldQuestReplacements": {},
+          "wyrmfallDaily": {}
+        }
+      ],
+      "entities": [
+        {
+          "aiState": "idle",
+          "attackPower": 46,
+          "auras": [
+            {
+              "duration": 3600,
+              "id": "battle_stance",
+              "kind": "battle_stance",
+              "name": "Battle Stance",
+              "remaining": 3600,
+              "school": "physical",
+              "sourceId": 1004
+            }
+          ],
+          "blockChance": 0.05,
+          "blockValue": 6,
+          "combatTimer": 99,
+          "comboUntil": -1,
+          "critChance": 0.06,
+          "detonateTimer": "Infinity",
+          "dodgeChance": 0.06,
+          "fallStartY": -2,
+          "fiveSecondRule": 99,
+          "healPower": 5,
+          "hp": 100,
+          "id": 1004,
+          "kind": "player",
+          "level": 1,
+          "lootFfaTimer": "Infinity",
+          "maxHp": 100,
+          "maxResource": 100,
+          "moveSpeed": 7,
+          "offhandItemId": "eastbrook_buckler",
+          "onGround": true,
+          "overpowerUntil": -1,
+          "petMode": "defensive",
+          "pos": {
+            "x": -94,
+            "y": -2,
+            "z": -58
+          },
+          "potionCooldownUntil": -1,
+          "resourceType": "rage",
+          "spawnPos": {
+            "x": -94,
+            "y": -2,
+            "z": -58
+          },
+          "spellPower": 5,
+          "stats": {
+            "agi": 20,
+            "armor": 144,
+            "int": 10,
+            "spi": 11,
+            "sta": 23,
+            "str": 23
+          },
+          "templateId": "warrior",
+          "weapon": {
+            "max": 5,
+            "min": 2,
+            "speed": 2
+          }
+        }
+      ]
+    },
+    {
+      "tick": 9,
+      "time": 0.45,
+      "nextId": 1031,
+      "state": "684b989d",
+      "events": "89510928",
+      "rng": {
+        "draws": 13,
+        "digest": "bde6d761"
+      },
+      "label": "advanced-to-apse",
+      "players": [
+        {
+          "activeLoadout": -1,
+          "archetype": {},
+          "arena2v2Rating": 1500,
+          "arenaRating": 1500,
+          "autoEquip": true,
+          "bags": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "bank": {
+            "socketBags": [
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "bgRating": 1500,
+          "buddies": {
+            "names": {}
+          },
+          "cls": "warrior",
+          "companionUpgrades": {},
+          "counters": {
+            "damageDealt": 1
+          },
+          "craftDaily": {},
+          "craftSkills": {},
+          "deedStats": {
+            "counters": {
+              "damageDealt": 1
+            },
+            "dungeonClears": {},
+            "itemsDiscovered": [
+              "baked_bread",
+              "eastbrook_buckler",
+              "recruit_tunic",
+              "worn_sword"
+            ]
+          },
+          "deedsEarned": [
+            [
+              "prog_double_digits",
+              ""
+            ],
+            [
+              "prog_finding_your_feet",
+              ""
+            ],
+            [
+              "prog_first_steps",
+              ""
+            ]
+          ],
+          "delveClears": {},
+          "delveDaily": {},
+          "entityId": 1004,
+          "equipment": {
+            "chest": "recruit_tunic",
+            "mainhand": "worn_sword",
+            "offhand": "eastbrook_buckler"
+          },
+          "equipmentInstance": {},
+          "factionCurrencies": {},
+          "factions": {},
+          "gatheringProficiency": {},
+          "gliderRecords": {},
+          "harvestPreference": {
+            "kind": "all"
+          },
+          "heroicDaily": {},
+          "inventory": [
+            {
+              "count": 5,
+              "itemId": "baked_bread"
+            }
+          ],
+          "lifetimeXp": 65500,
+          "mailWelcomed": true,
+          "nodeHarvestReadyAt": {},
+          "recipesGrandfathered": true,
+          "reliquary": {
+            "counts": {},
+            "firstFind": {}
+          },
+          "renown": 20,
+          "talents": {
+            "rows": {}
+          },
+          "townFocus": {},
+          "vault": {
+            "stock": {}
+          },
+          "vaultAttemptDurable": true,
+          "worldQuestReplacements": {},
+          "wyrmfallDaily": {}
+        }
+      ],
+      "entities": [
+        {
+          "aiState": "idle",
+          "attackPower": 98,
+          "auras": [
+            {
+              "duration": 3600,
+              "id": "battle_stance",
+              "kind": "battle_stance",
+              "name": "Battle Stance",
+              "remaining": 3599.55,
+              "school": "physical",
+              "sourceId": 1004
+            }
+          ],
+          "blockChance": 0.05,
+          "blockValue": 6,
+          "combatTimer": 0.45,
+          "comboUntil": -1,
+          "critChance": 0.0665,
+          "detonateTimer": "Infinity",
+          "dodgeChance": 0.0665,
+          "fiveSecondRule": 99.45,
+          "healPower": 5,
+          "hp": 50000,
+          "id": 1004,
+          "inCombat": true,
+          "kind": "player",
+          "level": 14,
+          "lootFfaTimer": "Infinity",
+          "maxHp": 50000,
+          "maxResource": 100,
+          "moveSpeed": 7,
+          "offhandItemId": "eastbrook_buckler",
+          "onGround": true,
+          "overpowerUntil": -1,
+          "petMode": "defensive",
+          "pos": {
+            "x": 104800,
+            "z": -1138
+          },
+          "potionCooldownUntil": -1,
+          "resourceType": "rage",
+          "spawnPos": {
+            "x": -94,
+            "y": -2,
+            "z": -58
+          },
+          "spellPower": 5,
+          "stats": {
+            "agi": 33,
+            "armor": 326,
+            "int": 10,
+            "spi": 11,
+            "sta": 49,
+            "str": 49
+          },
+          "templateId": "warrior",
+          "weapon": {
+            "max": 5,
+            "min": 2,
+            "speed": 2
+          }
+        }
+      ]
+    },
+    {
+      "tick": 10,
+      "time": 0.5,
+      "nextId": 1035,
+      "state": "be5574c3",
+      "events": "804da9ad",
+      "rng": {
+        "draws": 19,
+        "digest": "d0fc8d42"
+      }
+    },
+    {
+      "tick": 20,
+      "time": 1,
+      "nextId": 1035,
+      "state": "43c3ac2e",
+      "events": "0a9aac87",
+      "rng": {
+        "draws": 27,
+        "digest": "5e027df0"
+      }
+    },
+    {
+      "tick": 30,
+      "time": 1.5,
+      "nextId": 1035,
+      "state": "b9f5bbb1",
+      "events": "741638a5",
+      "rng": {
+        "draws": 27,
+        "digest": "5e027df0"
+      }
+    },
+    {
+      "tick": 40,
+      "time": 2,
+      "nextId": 1035,
+      "state": "89d20603",
+      "events": "741638a5",
+      "rng": {
+        "draws": 27,
+        "digest": "5e027df0"
+      }
+    },
+    {
+      "tick": 50,
+      "time": 2.5,
+      "nextId": 1035,
+      "state": "8f9cde59",
+      "events": "2c3a1718",
+      "rng": {
+        "draws": 101,
+        "digest": "9f74db9a"
+      }
+    },
+    {
+      "tick": 60,
+      "time": 3,
+      "nextId": 1035,
+      "state": "fb481124",
+      "events": "7f049cec",
+      "rng": {
+        "draws": 208,
+        "digest": "7c9b59cf"
+      }
+    },
+    {
+      "tick": 70,
+      "time": 3.5,
+      "nextId": 1035,
+      "state": "c96cb6ad",
+      "events": "741638a5",
+      "rng": {
+        "draws": 281,
+        "digest": "66b762a1"
+      }
+    },
+    {
+      "tick": 80,
+      "time": 4,
+      "nextId": 1035,
+      "state": "6fa0f4ec",
+      "events": "741638a5",
+      "rng": {
+        "draws": 361,
+        "digest": "f3c7b0d4"
+      }
+    },
+    {
+      "tick": 90,
+      "time": 4.5,
+      "nextId": 1035,
+      "state": "a459feeb",
+      "events": "1d893c18",
+      "rng": {
+        "draws": 460,
+        "digest": "6a6df44d"
+      }
+    },
+    {
+      "tick": 100,
+      "time": 5,
+      "nextId": 1035,
+      "state": "9c6527e0",
+      "events": "9ddb6e62",
+      "rng": {
+        "draws": 583,
+        "digest": "c473cbba"
+      }
+    },
+    {
+      "tick": 110,
+      "time": 5.5,
+      "nextId": 1035,
+      "state": "6f426887",
+      "events": "dc6920c7",
+      "rng": {
+        "draws": 689,
+        "digest": "5bf55cbd"
+      }
+    },
+    {
+      "tick": 120,
+      "time": 6,
+      "nextId": 1035,
+      "state": "42bca3e9",
+      "events": "741638a5",
+      "rng": {
+        "draws": 797,
+        "digest": "04efdcdf"
+      }
+    },
+    {
+      "tick": 130,
+      "time": 6.5,
+      "nextId": 1035,
+      "state": "cf97f23f",
+      "events": "fa46c6b3",
+      "rng": {
+        "draws": 886,
+        "digest": "8202cd21"
+      }
+    },
+    {
+      "tick": 140,
+      "time": 7,
+      "nextId": 1035,
+      "state": "aa3b9c42",
+      "events": "741638a5",
+      "rng": {
+        "draws": 992,
+        "digest": "aa554906"
+      }
+    },
+    {
+      "tick": 150,
+      "time": 7.5,
+      "nextId": 1035,
+      "state": "1d8779c5",
+      "events": "c627170a",
+      "rng": {
+        "draws": 1116,
+        "digest": "87afdcad"
+      }
+    },
+    {
+      "tick": 160,
+      "time": 8,
+      "nextId": 1035,
+      "state": "68ca47d0",
+      "events": "2d0912eb",
+      "rng": {
+        "draws": 1226,
+        "digest": "57d53492"
+      }
+    },
+    {
+      "tick": 170,
+      "time": 8.5,
+      "nextId": 1035,
+      "state": "0ae00350",
+      "events": "a5755e5c",
+      "rng": {
+        "draws": 1374,
+        "digest": "6c6e1e9f"
+      }
+    },
+    {
+      "tick": 180,
+      "time": 9,
+      "nextId": 1035,
+      "state": "624467e2",
+      "events": "402a6479",
+      "rng": {
+        "draws": 1506,
+        "digest": "f70ee8cc"
+      }
+    },
+    {
+      "tick": 190,
+      "time": 9.5,
+      "nextId": 1035,
+      "state": "4e954e13",
+      "events": "7b83239a",
+      "rng": {
+        "draws": 1661,
+        "digest": "9b0c7041"
+      }
+    },
+    {
+      "tick": 200,
+      "time": 10,
+      "nextId": 1035,
+      "state": "16813c64",
+      "events": "741638a5",
+      "rng": {
+        "draws": 1773,
+        "digest": "ba289f9e"
+      }
+    },
+    {
+      "tick": 210,
+      "time": 10.5,
+      "nextId": 1035,
+      "state": "06fde17d",
+      "events": "22864ada",
+      "rng": {
+        "draws": 1849,
+        "digest": "9fc6375e"
+      }
+    },
+    {
+      "tick": 220,
+      "time": 11,
+      "nextId": 1035,
+      "state": "2ec930d2",
+      "events": "741638a5",
+      "rng": {
+        "draws": 1946,
+        "digest": "9482b3a3"
+      }
+    },
+    {
+      "tick": 230,
+      "time": 11.5,
+      "nextId": 1035,
+      "state": "89ad816b",
+      "events": "278a3518",
+      "rng": {
+        "draws": 2018,
+        "digest": "b163ad1b"
+      }
+    },
+    {
+      "tick": 240,
+      "time": 12,
+      "nextId": 1035,
+      "state": "8ad7de98",
+      "events": "6ff5a52b",
+      "rng": {
+        "draws": 2095,
+        "digest": "9bc4758c"
+      }
+    },
+    {
+      "tick": 250,
+      "time": 12.5,
+      "nextId": 1039,
+      "state": "2e9daf37",
+      "events": "444eb056",
+      "rng": {
+        "draws": 2173,
+        "digest": "8abff192"
+      }
+    },
+    {
+      "tick": 260,
+      "time": 13,
+      "nextId": 1039,
+      "state": "dc97e607",
+      "events": "3f01b381",
+      "rng": {
+        "draws": 2231,
+        "digest": "e069d527"
+      }
+    },
+    {
+      "tick": 270,
+      "time": 13.5,
+      "nextId": 1039,
+      "state": "2ad37878",
+      "events": "741638a5",
+      "rng": {
+        "draws": 2313,
+        "digest": "6133980a"
+      }
+    },
+    {
+      "tick": 280,
+      "time": 14,
+      "nextId": 1039,
+      "state": "e969f5ab",
+      "events": "84f676b0",
+      "rng": {
+        "draws": 2395,
+        "digest": "7d594470"
+      }
+    },
+    {
+      "tick": 290,
+      "time": 14.5,
+      "nextId": 1039,
+      "state": "5a492e7f",
+      "events": "0295dc6a",
+      "rng": {
+        "draws": 2504,
+        "digest": "fcbdcc71"
+      }
+    },
+    {
+      "tick": 300,
+      "time": 15,
+      "nextId": 1039,
+      "state": "a0c97316",
+      "events": "741638a5",
+      "rng": {
+        "draws": 2598,
+        "digest": "e4d73766"
+      }
+    },
+    {
+      "tick": 310,
+      "time": 15.5,
+      "nextId": 1039,
+      "state": "e2b9bb50",
+      "events": "f541d56e",
+      "rng": {
+        "draws": 2733,
+        "digest": "e27e10e2"
+      }
+    },
+    {
+      "tick": 320,
+      "time": 16,
+      "nextId": 1039,
+      "state": "f39c7e95",
+      "events": "87d535c2",
+      "rng": {
+        "draws": 2825,
+        "digest": "01a2fe60"
+      }
+    },
+    {
+      "tick": 330,
+      "time": 16.5,
+      "nextId": 1043,
+      "state": "27eb7c7e",
+      "events": "8f7f4fc3",
+      "rng": {
+        "draws": 2942,
+        "digest": "a1f251e0"
+      }
+    },
+    {
+      "tick": 340,
+      "time": 17,
+      "nextId": 1043,
+      "state": "83979b12",
+      "events": "ae0e2057",
+      "rng": {
+        "draws": 3069,
+        "digest": "321cac1f"
+      }
+    },
+    {
+      "tick": 350,
+      "time": 17.5,
+      "nextId": 1043,
+      "state": "4dbbe73c",
+      "events": "d292d4aa",
+      "rng": {
+        "draws": 3162,
+        "digest": "f3a1cff1"
+      }
+    },
+    {
+      "tick": 360,
+      "time": 18,
+      "nextId": 1043,
+      "state": "9b396a2a",
+      "events": "741638a5",
+      "rng": {
+        "draws": 3236,
+        "digest": "a861dc2c"
+      }
+    },
+    {
+      "tick": 370,
+      "time": 18.5,
+      "nextId": 1043,
+      "state": "6ff46406",
+      "events": "359b203e",
+      "rng": {
+        "draws": 3307,
+        "digest": "5273531a"
+      }
+    },
+    {
+      "tick": 380,
+      "time": 19,
+      "nextId": 1043,
+      "state": "d07581cd",
+      "events": "2e6f5613",
+      "rng": {
+        "draws": 3398,
+        "digest": "32e65740"
+      }
+    },
+    {
+      "tick": 390,
+      "time": 19.5,
+      "nextId": 1043,
+      "state": "6df29456",
+      "events": "e639dfd0",
+      "rng": {
+        "draws": 3488,
+        "digest": "46489189"
+      }
+    },
+    {
+      "tick": 400,
+      "time": 20,
+      "nextId": 1043,
+      "state": "7b6d264c",
+      "events": "741638a5",
+      "rng": {
+        "draws": 3573,
+        "digest": "cc7282bb"
+      }
+    },
+    {
+      "tick": 410,
+      "time": 20.5,
+      "nextId": 1048,
+      "state": "1c8e6b4c",
+      "events": "2d7d364d",
+      "rng": {
+        "draws": 3670,
+        "digest": "a6c7722e"
+      }
+    },
+    {
+      "tick": 420,
+      "time": 21,
+      "nextId": 1048,
+      "state": "8fe0acc5",
+      "events": "b460aaad",
+      "rng": {
+        "draws": 3749,
+        "digest": "adb4b77c"
+      }
+    },
+    {
+      "tick": 430,
+      "time": 21.5,
+      "nextId": 1048,
+      "state": "5b89a0e4",
+      "events": "a344e131",
+      "rng": {
+        "draws": 3841,
+        "digest": "e8c235b5"
+      }
+    },
+    {
+      "tick": 440,
+      "time": 22,
+      "nextId": 1048,
+      "state": "69b87e2d",
+      "events": "741638a5",
+      "rng": {
+        "draws": 3908,
+        "digest": "3b2c1fce"
+      }
+    },
+    {
+      "tick": 450,
+      "time": 22.5,
+      "nextId": 1048,
+      "state": "58ccf8ca",
+      "events": "a344e131",
+      "rng": {
+        "draws": 3973,
+        "digest": "5ca0d573"
+      }
+    },
+    {
+      "tick": 460,
+      "time": 23,
+      "nextId": 1048,
+      "state": "d37d22b1",
+      "events": "a344e131",
+      "rng": {
+        "draws": 4059,
+        "digest": "cc7f5915"
+      }
+    },
+    {
+      "tick": 470,
+      "time": 23.5,
+      "nextId": 1048,
+      "state": "8ab56fa8",
+      "events": "f39fabee",
+      "rng": {
+        "draws": 4160,
+        "digest": "29a6cb26"
+      }
+    },
+    {
+      "tick": 480,
+      "time": 24,
+      "nextId": 1048,
+      "state": "74dea971",
+      "events": "741638a5",
+      "rng": {
+        "draws": 4234,
+        "digest": "baeab0b0"
+      }
+    },
+    {
+      "tick": 490,
+      "time": 24.5,
+      "nextId": 1048,
+      "state": "f963389a",
+      "events": "741638a5",
+      "rng": {
+        "draws": 4325,
+        "digest": "4df3874d"
+      }
+    },
+    {
+      "tick": 500,
+      "time": 25,
+      "nextId": 1048,
+      "state": "2b7f18ad",
+      "events": "a344e131",
+      "rng": {
+        "draws": 4425,
+        "digest": "0886719a"
+      }
+    },
+    {
+      "tick": 505,
+      "time": 25.25,
+      "nextId": 1048,
+      "state": "a6622dae",
+      "events": "a344e131",
+      "rng": {
+        "draws": 4458,
+        "digest": "2fc0bbe7"
+      },
+      "label": "rite-started",
+      "players": [
+        {
+          "activeLoadout": -1,
+          "archetype": {},
+          "arena2v2Rating": 1500,
+          "arenaRating": 1500,
+          "autoEquip": true,
+          "bags": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "bank": {
+            "socketBags": [
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "bgRating": 1500,
+          "buddies": {
+            "names": {}
+          },
+          "cls": "warrior",
+          "companionUpgrades": {},
+          "counters": {
+            "damageDealt": 5569,
+            "damageTaken": 31129,
+            "kills": 3,
+            "xpGained": 469
+          },
+          "craftDaily": {},
+          "craftSkills": {},
+          "deedStats": {
+            "counters": {
+              "damageDealt": 5569,
+              "kills": 3
+            },
+            "dungeonClears": {},
+            "itemsDiscovered": [
+              "baked_bread",
+              "eastbrook_buckler",
+              "recruit_tunic",
+              "worn_sword"
+            ]
+          },
+          "deedsEarned": [
+            [
+              "cmb_first_blood",
+              ""
+            ],
+            [
+              "prog_double_digits",
+              ""
+            ],
+            [
+              "prog_finding_your_feet",
+              ""
+            ],
+            [
+              "prog_first_steps",
+              ""
+            ]
+          ],
+          "delveClears": {},
+          "delveDaily": {},
+          "entityId": 1004,
+          "equipment": {
+            "chest": "recruit_tunic",
+            "mainhand": "worn_sword",
+            "offhand": "eastbrook_buckler"
+          },
+          "equipmentInstance": {},
+          "factionCurrencies": {},
+          "factions": {},
+          "gatheringProficiency": {},
+          "gliderRecords": {},
+          "harvestPreference": {
+            "kind": "all"
+          },
+          "heroicDaily": {},
+          "inventory": [
+            {
+              "count": 5,
+              "itemId": "baked_bread"
+            }
+          ],
+          "lifetimeXp": 65969,
+          "mailWelcomed": true,
+          "nodeHarvestReadyAt": {},
+          "recipesGrandfathered": true,
+          "reliquary": {
+            "counts": {},
+            "firstFind": {}
+          },
+          "renown": 25,
+          "talents": {
+            "rows": {}
+          },
+          "townFocus": {},
+          "vault": {
+            "stock": {}
+          },
+          "vaultAttemptDurable": true,
+          "worldQuestReplacements": {},
+          "wyrmfallDaily": {},
+          "xp": 469
+        }
+      ],
+      "entities": [
+        {
+          "aiState": "idle",
+          "attackPower": 98,
+          "auras": [
+            {
+              "duration": 3600,
+              "id": "battle_stance",
+              "kind": "battle_stance",
+              "name": "Battle Stance",
+              "remaining": 3574.75,
+              "school": "physical",
+              "sourceId": 1004
+            }
+          ],
+          "blockChance": 0.05,
+          "blockValue": 6,
+          "combatTimer": 4.8,
+          "comboUntil": -1,
+          "critChance": 0.0665,
+          "detonateTimer": "Infinity",
+          "dodgeChance": 0.0665,
+          "facing": -1.634191,
+          "fiveSecondRule": 124.25,
+          "healPower": 5,
+          "hp": 50000,
+          "id": 1004,
+          "inCombat": true,
+          "kind": "player",
+          "level": 14,
+          "lootFfaTimer": "Infinity",
+          "maxHp": 50000,
+          "maxResource": 100,
+          "moveSpeed": 7,
+          "offhandItemId": "eastbrook_buckler",
+          "onGround": true,
+          "overpowerUntil": 11.5,
+          "petMode": "defensive",
+          "pos": {
+            "x": 104801,
+            "z": -1070
+          },
+          "potionCooldownUntil": -1,
+          "resource": 100,
+          "resourceType": "rage",
+          "spawnPos": {
+            "x": -94,
+            "y": -2,
+            "z": -58
+          },
+          "spellPower": 5,
+          "stats": {
+            "agi": 33,
+            "armor": 326,
+            "int": 10,
+            "spi": 11,
+            "sta": 49,
+            "str": 49
+          },
+          "targetId": 1030,
+          "templateId": "warrior",
+          "weapon": {
+            "max": 5,
+            "min": 2,
+            "speed": 2
+          }
+        },
+        {
+          "aiState": "dead",
+          "autoAttack": true,
+          "comboUntil": -1,
+          "corpseHarvestState": {
+            "priorityEndsAt": 30.45,
+            "priorityMemberKeys": [
+              "entity:1004"
+            ],
+            "token": {}
+          },
+          "corpseTimer": 1795.2,
+          "critChance": 0.05,
+          "dead": true,
+          "detonateTimer": "Infinity",
+          "dodgeChance": 0.05,
+          "facing": 1.507402,
+          "fiveSecondRule": 99,
+          "hostile": true,
+          "id": 1030,
+          "inCombat": true,
+          "kind": "mob",
+          "leashAnchor": {
+            "x": 104801.597926,
+            "z": -1057.770847
+          },
+          "level": 17,
+          "loot": {
+            "copper": 468
+          },
+          "lootFfaTimer": 55.2,
+          "lootRecipientIds": [
+            1004
+          ],
+          "lootable": true,
+          "maxHp": 1136,
+          "moveSpeed": 7,
+          "onGround": true,
+          "overpowerUntil": -1,
+          "petMode": "defensive",
+          "pos": {
+            "x": 104801.597926,
+            "z": -1057.770847
+          },
+          "potionCooldownUntil": -1,
+          "respawnTimer": 20.2,
+          "spawnPos": {
+            "x": 104800,
+            "z": -1058
+          },
+          "stats": {
+            "armor": 320
+          },
+          "summonedIds": [
+            1031,
+            1032,
+            1033,
+            1034,
+            1039,
+            1040,
+            1041,
+            1042
+          ],
+          "swingTimer": 2.05,
+          "tappedById": 1004,
+          "targetId": 1004,
+          "templateId": "sister_nhalia_drowned_canticle",
+          "wanderTarget": {
+            "x": 104802.52728,
+            "z": -1056.231614
+          },
+          "wanderTimer": 29.95,
+          "weapon": {
+            "max": 92,
+            "min": 59,
+            "speed": 2.2
+          }
+        }
+      ]
+    },
+    {
+      "tick": 507,
+      "time": 25.35,
+      "nextId": 1048,
+      "state": "76e3fccc",
+      "events": "741638a5",
+      "rng": {
+        "draws": 4476,
+        "digest": "c567aaa7"
+      },
+      "label": "final",
+      "players": [
+        {
+          "activeLoadout": -1,
+          "archetype": {},
+          "arena2v2Rating": 1500,
+          "arenaRating": 1500,
+          "autoEquip": true,
+          "bags": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "bank": {
+            "socketBags": [
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "bgRating": 1500,
+          "buddies": {
+            "names": {}
+          },
+          "cls": "warrior",
+          "companionUpgrades": {},
+          "counters": {
+            "damageDealt": 5569,
+            "damageTaken": 31129,
+            "kills": 3,
+            "xpGained": 469
+          },
+          "craftDaily": {},
+          "craftSkills": {},
+          "deedStats": {
+            "counters": {
+              "damageDealt": 5569,
+              "kills": 3
+            },
+            "dungeonClears": {},
+            "itemsDiscovered": [
+              "baked_bread",
+              "eastbrook_buckler",
+              "recruit_tunic",
+              "worn_sword"
+            ]
+          },
+          "deedsEarned": [
+            [
+              "cmb_first_blood",
+              ""
+            ],
+            [
+              "prog_double_digits",
+              ""
+            ],
+            [
+              "prog_finding_your_feet",
+              ""
+            ],
+            [
+              "prog_first_steps",
+              ""
+            ]
+          ],
+          "delveClears": {},
+          "delveDaily": {},
+          "entityId": 1004,
+          "equipment": {
+            "chest": "recruit_tunic",
+            "mainhand": "worn_sword",
+            "offhand": "eastbrook_buckler"
+          },
+          "equipmentInstance": {},
+          "factionCurrencies": {},
+          "factions": {},
+          "gatheringProficiency": {},
+          "gliderRecords": {},
+          "harvestPreference": {
+            "kind": "all"
+          },
+          "heroicDaily": {},
+          "inventory": [
+            {
+              "count": 5,
+              "itemId": "baked_bread"
+            }
+          ],
+          "lifetimeXp": 65969,
+          "mailWelcomed": true,
+          "nodeHarvestReadyAt": {},
+          "recipesGrandfathered": true,
+          "reliquary": {
+            "counts": {},
+            "firstFind": {}
+          },
+          "renown": 25,
+          "talents": {
+            "rows": {}
+          },
+          "townFocus": {},
+          "vault": {
+            "stock": {}
+          },
+          "vaultAttemptDurable": true,
+          "worldQuestReplacements": {},
+          "wyrmfallDaily": {},
+          "xp": 469
+        }
+      ],
+      "entities": [
+        {
+          "aiState": "idle",
+          "attackPower": 98,
+          "auras": [
+            {
+              "duration": 3600,
+              "id": "battle_stance",
+              "kind": "battle_stance",
+              "name": "Battle Stance",
+              "remaining": 3574.65,
+              "school": "physical",
+              "sourceId": 1004
+            }
+          ],
+          "blockChance": 0.05,
+          "blockValue": 6,
+          "combatTimer": 4.9,
+          "comboUntil": -1,
+          "critChance": 0.0665,
+          "detonateTimer": "Infinity",
+          "dodgeChance": 0.0665,
+          "facing": -1.634191,
+          "fiveSecondRule": 124.35,
+          "healPower": 5,
+          "hp": 50000,
+          "id": 1004,
+          "inCombat": true,
+          "kind": "player",
+          "level": 14,
+          "lootFfaTimer": "Infinity",
+          "maxHp": 50000,
+          "maxResource": 100,
+          "moveSpeed": 7,
+          "offhandItemId": "eastbrook_buckler",
+          "onGround": true,
+          "overpowerUntil": 11.5,
+          "petMode": "defensive",
+          "pos": {
+            "x": 104801,
+            "z": -1070
+          },
+          "potionCooldownUntil": -1,
+          "resource": 100,
+          "resourceType": "rage",
+          "spawnPos": {
+            "x": -94,
+            "y": -2,
+            "z": -58
+          },
+          "spellPower": 5,
+          "stats": {
+            "agi": 33,
+            "armor": 326,
+            "int": 10,
+            "spi": 11,
+            "sta": 49,
+            "str": 49
+          },
+          "targetId": 1030,
+          "templateId": "warrior",
+          "weapon": {
+            "max": 5,
+            "min": 2,
+            "speed": 2
+          }
+        },
+        {
+          "aiState": "dead",
+          "autoAttack": true,
+          "comboUntil": -1,
+          "corpseHarvestState": {
+            "priorityEndsAt": 30.45,
+            "priorityMemberKeys": [
+              "entity:1004"
+            ],
+            "token": {}
+          },
+          "corpseTimer": 1795.1,
+          "critChance": 0.05,
+          "dead": true,
+          "detonateTimer": "Infinity",
+          "dodgeChance": 0.05,
+          "facing": 1.507402,
+          "fiveSecondRule": 99,
+          "hostile": true,
+          "id": 1030,
+          "inCombat": true,
+          "kind": "mob",
+          "leashAnchor": {
+            "x": 104801.597926,
+            "z": -1057.770847
+          },
+          "level": 17,
+          "loot": {
+            "copper": 468
+          },
+          "lootFfaTimer": 55.1,
+          "lootRecipientIds": [
+            1004
+          ],
+          "lootable": true,
+          "maxHp": 1136,
+          "moveSpeed": 7,
+          "onGround": true,
+          "overpowerUntil": -1,
+          "petMode": "defensive",
+          "pos": {
+            "x": 104801.597926,
+            "z": -1057.770847
+          },
+          "potionCooldownUntil": -1,
+          "respawnTimer": 20.1,
+          "spawnPos": {
+            "x": 104800,
+            "z": -1058
+          },
+          "stats": {
+            "armor": 320
+          },
+          "summonedIds": [
+            1031,
+            1032,
+            1033,
+            1034,
+            1039,
+            1040,
+            1041,
+            1042
+          ],
+          "swingTimer": 2.05,
+          "tappedById": 1004,
+          "targetId": 1004,
+          "templateId": "sister_nhalia_drowned_canticle",
+          "wanderTarget": {
+            "x": 104802.52728,
+            "z": -1056.231614
+          },
+          "wanderTimer": 29.95,
+          "weapon": {
+            "max": 92,
+            "min": 59,
+            "speed": 2.2
+          }
+        }
+      ]
+    }
+  ]
+}

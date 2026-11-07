@@ -1,0 +1,3540 @@
+/* Map-editor stylesheet. Standalone entry (never in the game client bundle);
+   mirrors the game's design tokens (src/styles/tokens.css) as local custom
+   properties with the same resolved values, so the editor reads as part of the
+   product without importing the HUD layer stack. Dark, dense, tool-like. */
+
+:root {
+  color-scheme: dark;
+  /* Mirrored tokens (values match src/styles/tokens.css). */
+  --gold: #d9b84c;
+  --gold-dim: #927a38;
+  --color-bg-dark: #171717;
+  --color-bg-input: #202020;
+  --color-border-default: #404040;
+  --color-border-focus: #c8a838;
+  --color-text-light: #eeeeee;
+  --color-text-muted: #a3a3a3;
+  --color-text-error: #ff8f85;
+  --color-text-success: #7fdc4f;
+  --panel-base: #1f1f1f;
+  /* Editor-local surfaces. */
+  --ed-bg: #171717;
+  --ed-panel: #1f1f1f;
+  --ed-panel-2: #252525;
+  --ed-panel-3: #2c2c2c;
+  --ed-line: #393939;
+  --ed-line-strong: #555555;
+  --ed-text: #eeeeee;
+  --ed-muted: #a7a7a7;
+  --ed-danger: #e0503c;
+  --ed-accent: #d0d0d0;
+  --ed-accent-strong: #f3f3f3;
+  --ed-accent-ink: #171717;
+  --ed-focus: #ededed;
+  --ed-radius: 6px;
+  --ed-topbar-h: 52px;
+  --ed-topbar-control-h: 34px;
+  --ed-shadow: 0 16px 36px rgb(0 0 0 / 0.38);
+  /* Per-tool hues: one color follows the active tool through the rail button,
+     the inspector header chip, and the slider accents, so "what am I holding"
+     is always answered by color. Idle rail stays monochrome; hue appears on
+     hover/active only. */
+  --hue-select: var(--gold);
+  --hue-sculpt: var(--ed-accent);
+  --hue-paint: var(--ed-accent);
+  --hue-water: var(--ed-accent);
+  --hue-place: var(--ed-accent);
+  --hue-blocker: var(--ed-accent);
+  --hue-region: var(--ed-accent);
+  --hue-erase: var(--ed-accent);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--ed-bg);
+  color: var(--ed-text);
+  font:
+    13px / 1.45 -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+#editor-app,
+.ed-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ed-live-world-notice {
+  flex: none;
+  padding: 6px 12px;
+  background: var(--ed-panel-2);
+  border-bottom: 1px solid var(--ed-line);
+  color: var(--ed-muted);
+}
+
+/* ---- shared controls ------------------------------------------------------ */
+
+button {
+  min-height: 32px;
+  background: #292929;
+  color: var(--ed-text);
+  border: 1px solid #444444;
+  border-radius: var(--ed-radius);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  border-color: #666666;
+  background: #353535;
+}
+
+button:active:not(:disabled) {
+  background: #3d3d3d;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: #dedede;
+  color: var(--ed-accent-ink);
+  border-color: #dedede;
+  font-weight: 650;
+  box-shadow: none;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #f2f2f2;
+  border-color: #f2f2f2;
+}
+
+button.danger {
+  border-color: #5b2a24;
+  color: #ffb3a8;
+}
+
+button.danger:hover:not(:disabled) {
+  border-color: var(--ed-danger);
+  background: #2a1713;
+}
+
+button.small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+button.active {
+  background: #d7d7d7;
+  color: var(--ed-accent-ink);
+  border-color: #e5e5e5;
+  font-weight: 600;
+}
+
+:is(button, input, select, textarea, a):focus-visible {
+  outline: 1px solid var(--ed-focus);
+  outline-offset: 1px;
+}
+
+input[type="text"],
+input[type="search"],
+input[type="number"],
+select {
+  background: var(--color-bg-input);
+  border: 1px solid #464646;
+  color: var(--ed-text);
+  border-radius: var(--ed-radius);
+  min-height: 32px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+input[type="text"]:hover,
+input[type="search"]:hover,
+input[type="number"]:hover,
+select:hover {
+  border-color: #5a5a5a;
+}
+
+input[type="text"]:focus,
+input[type="search"]:focus,
+input[type="number"]:focus,
+select:focus {
+  border-color: #777777;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--ed-accent);
+}
+
+/* ---- top bar --------------------------------------------------------------- */
+
+.ed-topbar {
+  height: var(--ed-topbar-h);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  background: #191919;
+  border-bottom: 1px solid var(--ed-line);
+  box-shadow: none;
+  z-index: 35;
+}
+
+.ed-brand {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  padding: 2px;
+  border-radius: 9px;
+  font-weight: 650;
+  font-size: 13px;
+  color: #f1f1f1;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  transition:
+    width 180ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 140ms ease;
+}
+
+.ed-brand:hover,
+.ed-brand:focus-visible {
+  width: 166px;
+  background: #242424;
+  outline: none;
+}
+
+.ed-brand-mark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.ed-brand-name {
+  width: 116px;
+  flex: 0 0 116px;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition:
+    opacity 120ms ease 35ms,
+    transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.ed-brand:hover .ed-brand-name,
+.ed-brand:focus-visible .ed-brand-name {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.ed-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 8px;
+  border-left: 1px solid var(--ed-line);
+}
+
+.ed-name {
+  width: 185px;
+  max-width: 26vw;
+  height: var(--ed-topbar-control-h);
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ed-radius);
+  color: var(--ed-text);
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.ed-name:hover {
+  border-color: var(--ed-line);
+}
+
+.ed-name:focus {
+  border-color: var(--ed-line-strong);
+  background: var(--color-bg-input);
+}
+
+.ed-dirty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f2b84b;
+  box-shadow: 0 0 0 3px rgb(242 184 75 / 0.12);
+  flex: 0 0 auto;
+}
+
+.ed-save-state {
+  color: var(--ed-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.ed-undo-badge {
+  color: var(--ed-muted);
+  font-size: 11px;
+  border: 1px solid var(--ed-line);
+  border-radius: 10px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.ed-topbar-spacer {
+  flex: 1;
+  min-width: 4px;
+}
+
+.ed-offline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #d8c082;
+  border: 1px solid #62563a;
+  background: #292720;
+  border-radius: 6px;
+  height: var(--ed-topbar-control-h);
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.ed-offline a {
+  color: var(--ed-accent);
+  text-decoration: none;
+}
+
+.ed-offline a:hover {
+  text-decoration: underline;
+}
+
+.ed-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.ed-undo-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The header follows the quiet, low-chrome treatment used by modern AI
+   studios: commands are flat at rest and gain a surface only on hover. */
+.ed-topbar :is(.ed-undo-actions, .ed-actions, .ed-workspace-wrap) > button,
+.ed-topbar .ed-more-wrap > button {
+  color: #c7c7c7;
+  background: transparent;
+  border-color: transparent;
+}
+
+.ed-topbar :is(.ed-undo-actions, .ed-actions, .ed-workspace-wrap) > button:hover:not(:disabled),
+.ed-topbar .ed-more-wrap > button:hover:not(:disabled),
+.ed-topbar :is(.ed-undo-actions, .ed-actions, .ed-workspace-wrap) > button.active,
+.ed-topbar .ed-more-wrap > button.active {
+  color: #f1f1f1;
+  background: #292929;
+  border-color: #353535;
+}
+
+.ed-topbar > button.primary {
+  color: #171717;
+  background: #e2e2e2;
+  border-color: #e2e2e2;
+}
+
+/* Every always-visible header command shares one control grid. History,
+   document, workspace, and playtest buttons now align exactly while
+   their active/primary colors continue to communicate state. */
+.ed-undo-actions > button,
+.ed-actions > button,
+.ed-actions > .ed-more-wrap > button,
+.ed-workspace-wrap > button,
+.ed-topbar > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  height: var(--ed-topbar-control-h);
+  min-height: var(--ed-topbar-control-h);
+  padding: 0 11px;
+  border-radius: var(--ed-radius);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ed-tb-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+  background: var(--ed-line);
+  flex: 0 0 auto;
+}
+
+/* Unsaved edits: the Save button carries the same amber signal as the dot. */
+.ed-actions button.attn:not(:disabled) {
+  border-color: var(--gold-dim);
+  color: var(--gold);
+}
+
+/* Autosave toggle: a status LED, gray when off, green when on (the gold block
+   the generic .active gives every other button would read as "pressed", not
+   "running"). */
+.ed-actions .ed-autosave::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+  background: #55606d;
+}
+
+.ed-actions .ed-autosave.active {
+  background: #16241a;
+  border-color: #3d6b41;
+  color: var(--color-text-success);
+  font-weight: 600;
+}
+
+.ed-actions .ed-autosave.active::before {
+  background: var(--color-text-success);
+}
+
+/* ---- inspector tabs (Tools | Lighting) -------------------------------------- */
+
+.ed-inspector-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 4px;
+  background: #191919;
+  border: 1px solid var(--ed-line);
+  border-radius: 8px;
+}
+
+.ed-inspector-tab {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-color: transparent;
+  background: transparent;
+}
+
+/* ---- More menu (secondary topbar actions) ---------------------------------- */
+
+.ed-more-wrap {
+  position: relative;
+}
+
+.ed-more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 210px;
+  padding: 7px;
+  background: #242424;
+  border: 1px solid var(--ed-line-strong);
+  border-radius: 8px;
+  box-shadow: var(--ed-shadow);
+}
+
+.ed-more-menu button {
+  width: 100%;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+}
+
+.ed-more-menu button:hover:not(:disabled) {
+  background: #333333;
+}
+
+.ed-more-sep {
+  height: 1px;
+  background: var(--ed-line);
+  margin: 2px 0;
+}
+
+/* Progressive slimming so the bar never wraps or clips at common widths. */
+@media (max-width: 1360px) {
+  .ed-save-state {
+    display: none;
+  }
+}
+
+@media (max-width: 1200px) {
+  .ed-undo-badge {
+    display: none;
+  }
+
+  .ed-name {
+    width: 140px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .ed-topbar {
+    gap: 3px;
+  }
+
+  .ed-actions {
+    gap: 4px;
+  }
+}
+
+.ed-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--ed-line);
+  border-radius: var(--ed-radius);
+  overflow: hidden;
+}
+
+.ed-workspace-wrap {
+  position: relative;
+}
+
+.ed-workspace-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 45;
+  width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px;
+  background: #242424;
+  border: 1px solid var(--ed-line-strong);
+  border-radius: 8px;
+  box-shadow: var(--ed-shadow);
+}
+
+.ed-workspace-menu > button,
+.ed-workspace-menu .ed-map-actions > button {
+  width: 100%;
+}
+
+.ed-workspace-menu .ed-view-toggle,
+.ed-workspace-menu .ed-map-actions {
+  width: 100%;
+}
+
+.ed-workspace-menu .ed-view-toggle button,
+.ed-workspace-menu .ed-map-actions button {
+  flex: 1;
+}
+
+.ed-view-toggle button {
+  border: 0;
+  border-radius: 0;
+  padding: 6px 12px;
+}
+
+.ed-projection {
+  min-width: 91px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1200px) {
+  .ed-projection {
+    min-width: 0;
+    padding-inline: 8px;
+  }
+}
+
+.ed-playtest {
+  padding: 7px 16px;
+}
+
+/* ---- main split ------------------------------------------------------------- */
+
+.ed-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  background: var(--ed-bg);
+}
+
+.ed-toolbar {
+  flex: 0 0 auto;
+  width: 68px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  padding: 7px 6px;
+  background: #191919;
+  border-right: 1px solid var(--ed-line);
+  overflow: visible;
+  z-index: 28;
+}
+
+.ed-transform-tools {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: auto;
+  padding-top: 7px;
+  border-top: 1px solid #303030;
+}
+
+.ed-transform-tool {
+  position: relative;
+  width: 44px;
+  height: 40px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #a9a9a9;
+  background: transparent;
+  border-color: transparent;
+}
+
+.ed-transform-tool svg {
+  width: 19px;
+  height: 19px;
+}
+
+.ed-transform-tool kbd {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  color: #747474;
+  font: 650 8px / 1 inherit;
+}
+
+.ed-transform-tool:hover:not(:disabled) {
+  color: #f0f0f0;
+  background: #292929;
+  border-color: #353535;
+}
+
+.ed-transform-tool.active {
+  color: #171717;
+  background: #d9d9d9;
+  border-color: #e5e5e5;
+}
+
+.ed-transform-tool.active kbd {
+  color: #555555;
+}
+
+.ed-tool-group {
+  position: relative;
+  width: 100%;
+}
+
+.ed-tool-group-btn {
+  width: 100%;
+  min-height: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 3px;
+  color: #a8a8a8;
+  background: transparent;
+  border-color: transparent;
+}
+
+.ed-tool-group-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ed-tool-group-label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-tool-group-caret {
+  position: absolute;
+  right: 5px;
+  top: 20px;
+  color: #737373;
+  font-size: 11px;
+}
+
+.ed-tool-group-btn:hover:not(:disabled),
+.ed-tool-group-btn.open,
+.ed-tool-group-btn.active {
+  color: #171717;
+  background: #d4d4d4;
+  border-color: #e2e2e2;
+}
+
+.ed-tool-group-btn.active {
+  box-shadow: inset 3px 0 var(--gold-dim);
+}
+
+/* Ravenrift toggle: a rail button that opens and hides a window rather than
+   picking a tool, so it sits under the groups with a rule above it. */
+.ed-ravenrift-toggle {
+  margin-top: 6px;
+  border-top: 1px solid var(--ed-line, #2a2a2a);
+  border-radius: 0;
+}
+
+.ed-tool-menu {
+  position: absolute;
+  left: calc(100% + 9px);
+  top: 0;
+  z-index: 50;
+  width: 220px;
+  max-height: min(520px, calc(100vh - 92px));
+  overflow-y: auto;
+  padding: 7px;
+  background: #242424;
+  border: 1px solid var(--ed-line-strong);
+  border-radius: 8px;
+  box-shadow: var(--ed-shadow);
+}
+
+.ed-tool-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  color: #c8c8c8;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+}
+
+.ed-tool-menu-item svg {
+  width: 18px;
+  height: 18px;
+  color: #92959b;
+}
+
+.ed-tool-menu-item:hover:not(:disabled),
+.ed-tool-menu-item.active {
+  color: #171717;
+  background: #d4d4d4;
+  border-color: #e2e2e2;
+}
+
+.ed-tool-menu-item.active svg {
+  color: #252525;
+}
+
+.ed-toolbar-sep {
+  width: 26px;
+  height: 1px;
+  margin: 3px 0;
+  background: var(--ed-line);
+  flex: 0 0 auto;
+}
+
+/* Each tool resolves its family hue; the rail, inspector chip, and slider
+   accents all read the same variable. */
+.ed-tool[data-tool="select"],
+.ed-inspector[data-tool="select"] {
+  --tool-hue: var(--hue-select);
+}
+.ed-tool[data-tool="raise"],
+.ed-tool[data-tool="lower"],
+.ed-tool[data-tool="smooth"],
+.ed-tool[data-tool="flatten"],
+.ed-inspector[data-tool="raise"],
+.ed-inspector[data-tool="lower"],
+.ed-inspector[data-tool="smooth"],
+.ed-inspector[data-tool="flatten"] {
+  --tool-hue: var(--hue-sculpt);
+}
+.ed-tool[data-tool="paint"],
+.ed-inspector[data-tool="paint"] {
+  --tool-hue: var(--hue-paint);
+}
+.ed-tool[data-tool="music"],
+.ed-inspector[data-tool="music"] {
+  --tool-hue: var(--ed-accent);
+}
+
+.ed-tool[data-tool="water"],
+.ed-inspector[data-tool="water"] {
+  --tool-hue: var(--hue-water);
+}
+.ed-tool[data-tool="place"],
+.ed-tool[data-tool="camp"],
+.ed-tool[data-tool="spawn"],
+.ed-inspector[data-tool="place"],
+.ed-inspector[data-tool="camp"],
+.ed-inspector[data-tool="spawn"] {
+  --tool-hue: var(--hue-place);
+}
+.ed-tool[data-tool="blocker"],
+.ed-inspector[data-tool="blocker"] {
+  --tool-hue: var(--hue-blocker);
+}
+.ed-tool[data-tool="region"],
+.ed-inspector[data-tool="region"] {
+  --tool-hue: var(--hue-region);
+}
+.ed-tool[data-tool="erase"],
+.ed-inspector[data-tool="erase"] {
+  --tool-hue: var(--hue-erase);
+}
+.ed-tool[data-tool="grassclear"],
+.ed-inspector[data-tool="grassclear"] {
+  --tool-hue: var(--ed-accent);
+}
+
+.ed-tool {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--ed-muted);
+  --tool-hue: var(--ed-accent);
+}
+
+.ed-tool:hover:not(:disabled) {
+  color: #f1f1f1;
+  border-color: #555555;
+  background: #303030;
+}
+
+/* Active tool: hue-tinted fill + a left edge bar, instead of the generic gold
+   block every button shared before. */
+.ed-tool.active {
+  color: #171717;
+  background: #d5d5d5;
+  border-color: #e4e4e4;
+}
+
+.ed-tool.active::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--gold-dim);
+}
+
+.ed-tool-key {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  color: currentColor;
+  opacity: 0.75;
+}
+
+/* ---- Collision Master modeling toolbar ---------------------------------------- */
+
+/* Blender header look: flat dark buttons, a silver active state,
+   icons with hotkey chips, and an Add dropdown for the primitives. */
+.ed-cm-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100% - 24px);
+  gap: 4px;
+  align-items: center;
+  padding: 6px 8px;
+  background: #202020;
+  border: 1px solid #505050;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.34);
+}
+
+.ed-cm-modes {
+  display: flex;
+  gap: 0;
+  border: 1px solid #101012;
+  border-radius: 4px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.ed-cm-modes .ed-cm-btn {
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid #101012;
+}
+
+.ed-cm-modes .ed-cm-btn:last-child {
+  border-right: none;
+}
+
+.ed-cm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #d0d0d0;
+  background: #2a2a2a;
+  border: 1px solid #444444;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.08s ease,
+    color 0.08s ease;
+}
+
+.ed-cm-btn:hover {
+  color: #ffffff;
+  background: #383838;
+}
+
+.ed-cm-btn.active {
+  color: #171717;
+  background: #dedede;
+  border-color: #eeeeee;
+}
+
+.ed-cm-ico {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.ed-cm-ico svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ed-cm-label {
+  line-height: 1;
+}
+
+.ed-cm-key {
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: #9a9aa2;
+  background: #1b1b1e;
+  border: 1px solid #101012;
+}
+
+.ed-cm-select {
+  min-width: 118px;
+  height: 27px;
+  padding: 2px 7px;
+  color: #eeeeee;
+  background: #292929;
+  border: 1px solid #484848;
+  border-radius: 4px;
+  font: 500 12px / 1 inherit;
+}
+
+.ed-cm-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #bfc0c7;
+  font-size: 10px;
+}
+
+.ed-cm-range-label {
+  min-width: 32px;
+}
+
+.ed-cm-range input {
+  width: 70px;
+  accent-color: var(--ed-accent);
+}
+
+.ed-cm-btn.active .ed-cm-key {
+  color: #eceef0;
+  background: #4a4d53;
+  border-color: #34363b;
+}
+
+.ed-cm-caret {
+  font-size: 9px;
+  color: #9a9aa2;
+  margin-left: -2px;
+}
+
+.ed-cm-add-menu {
+  position: absolute;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  background: #242424;
+  border: 1px solid #4b4b4b;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+}
+
+.ed-cm-add-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  color: #c9c9cf;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.ed-cm-add-item:hover {
+  color: #171717;
+  background: #d5d5d5;
+}
+
+.ed-cm-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: #101012;
+  flex: 0 0 auto;
+}
+
+.ed-cm-sculpt-palette {
+  position: absolute;
+  z-index: 7;
+  top: 128px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px;
+  background: #202020;
+  border: 1px solid #494949;
+  border-radius: 7px;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.34);
+}
+
+.ed-cm-sculpt-tool {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 7px;
+  color: #bebec2;
+  background: #2a2a2a;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.ed-cm-sculpt-tool svg {
+  width: 100%;
+  height: 100%;
+}
+.ed-cm-sculpt-tool:hover {
+  color: #151515;
+  background: #ededed;
+}
+.ed-cm-sculpt-tool.active {
+  color: #161616;
+  background: #d8d8d8;
+  border-color: #fff;
+}
+
+/* ---- stage ------------------------------------------------------------------- */
+
+.ed-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  touch-action: none;
+  background: #090a0b;
+}
+
+.editor-3d-host,
+.editor-2d-host {
+  position: absolute;
+  inset: 0;
+}
+
+.editor-3d-canvas,
+.editor-2d-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.editor-3d-nameplates {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Camera-relative 3D axis gimbal, inspired by Blender and Tripo view controls. */
+.editor-axis-widget {
+  --axis-plane-color: #348ccd;
+  --axis-plane-border: #66afe0;
+  --axis-plane-glow: rgba(52, 140, 205, 0.34);
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 6;
+  width: 92px;
+  height: 92px;
+  pointer-events: auto;
+  user-select: none;
+  isolation: isolate;
+}
+
+.editor-axis-widget[data-current-plane="x"] {
+  --axis-plane-color: #d84d58;
+  --axis-plane-border: #f07078;
+  --axis-plane-glow: rgba(216, 77, 88, 0.34);
+}
+
+.editor-axis-widget[data-current-plane="y"] {
+  --axis-plane-color: #9bd34f;
+  --axis-plane-border: #bce875;
+  --axis-plane-glow: rgba(155, 211, 79, 0.3);
+}
+
+.editor-axis-widget[data-current-plane="z"] {
+  --axis-plane-color: #348ccd;
+  --axis-plane-border: #66afe0;
+  --axis-plane-glow: rgba(52, 140, 205, 0.34);
+}
+
+.editor-axis-core {
+  --axis-core-mark-x: 0px;
+  --axis-core-mark-y: 0px;
+  position: absolute;
+  left: 46px;
+  top: 46px;
+  z-index: 20;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--axis-plane-border);
+  border-radius: 5px;
+  background: var(--axis-plane-color);
+  box-shadow:
+    inset 3px 3px 0 rgba(255, 255, 255, 0.12),
+    inset -4px -5px 0 rgba(0, 0, 0, 0.24),
+    0 0 8px var(--axis-plane-glow),
+    0 2px 5px rgba(0, 0, 0, 0.55);
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.editor-axis-core-mark {
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  width: 4px;
+  height: 4px;
+  transform: translate(var(--axis-core-mark-x), var(--axis-core-mark-y));
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.editor-axis-arm {
+  position: absolute;
+  left: 46px;
+  top: 46px;
+  width: 31px;
+  height: 3px;
+  transform-origin: 0 50%;
+  border-radius: 999px;
+  background: #6c7075;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  will-change: transform, opacity;
+  transition: opacity 90ms ease;
+}
+
+.editor-axis-button {
+  position: absolute;
+  left: 46px;
+  top: 46px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  max-width: 22px;
+  max-height: 22px;
+  aspect-ratio: 1;
+  padding: 0;
+  color: #e3e5e8;
+  background: #34373b;
+  border: 1px solid #686c72;
+  border-radius: 5px;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.12),
+    inset -3px -3px 0 rgba(0, 0, 0, 0.18),
+    0 2px 5px rgba(0, 0, 0, 0.48);
+  font:
+    800 11px / 1 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  cursor: pointer;
+  will-change: transform, opacity;
+  transition:
+    opacity 70ms linear,
+    width 160ms ease,
+    height 160ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    filter 100ms ease;
+}
+
+.editor-axis-button:hover,
+.editor-axis-button:focus-visible {
+  outline: none;
+  filter: brightness(1.28);
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.18),
+    0 0 0 2px rgba(255, 255, 255, 0.55),
+    0 4px 9px rgba(0, 0, 0, 0.5);
+}
+
+.editor-axis-button[class*="axis-negative"] {
+  width: 13px;
+  height: 13px;
+  min-width: 13px;
+  min-height: 13px;
+  max-width: 13px;
+  max-height: 13px;
+  color: transparent;
+  border-color: #777b80;
+  border-radius: 3px;
+  background: #3a3d41;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.52);
+}
+
+.editor-axis-button[class*="axis-negative"]::after {
+  width: 3px;
+  height: 3px;
+  border-radius: 1px;
+  background: #c1c4c8;
+  content: "";
+}
+
+.editor-axis-button.is-current-plane {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  max-width: 24px;
+  max-height: 24px;
+  color: #fff;
+  border-color: var(--axis-plane-border);
+  border-radius: 6px;
+  background: var(--axis-plane-color);
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.18),
+    inset -3px -3px 0 rgba(0, 0, 0, 0.2),
+    0 0 10px var(--axis-plane-glow),
+    0 3px 7px rgba(0, 0, 0, 0.58);
+  font-size: 10px;
+  opacity: 1 !important;
+}
+
+.editor-axis-button.is-current-plane::after {
+  content: none;
+}
+
+.editor-axis-button.is-view-axis {
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.18),
+    0 0 0 3px rgba(255, 255, 255, 0.08),
+    0 3px 7px rgba(0, 0, 0, 0.58);
+}
+
+.editor-axis-button.axis-positiveX {
+  color: #fff;
+  background: #d84d58;
+  border-color: #f07078;
+}
+.editor-axis-button.axis-positiveY {
+  color: #18200d;
+  background: #9bd34f;
+  border-color: #bce875;
+}
+.editor-axis-button.axis-positiveZ {
+  color: #fff;
+  background: #348ccd;
+  border-color: #66afe0;
+}
+.editor-axis-arm.axis-positiveX {
+  background: #c3424c;
+}
+.editor-axis-arm.axis-positiveY {
+  background: #7da938;
+}
+.editor-axis-arm.axis-positiveZ {
+  background: #2872a8;
+}
+
+/* Full-stage overlay while the 3D engine loads its assets. */
+/* FORK: floating Lock in / Cancel bar for a pending Caves cut. */
+.ed-cut-lock {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(20, 18, 16, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.ed-3d-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--ed-bg);
+  color: var(--ed-text-dim, #b8b2a5);
+  z-index: 5;
+  transition: opacity 0.4s ease;
+}
+
+/* Fading into the built map: the curtain stays opaque until the viewport has
+   painted, then dissolves over the scene instead of cutting to it. */
+.ed-3d-loading-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ed-3d-loading-spin {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.14);
+  border-top-color: var(--ed-accent, #e8b64f);
+  animation: ed-3d-loading-spin 0.9s linear infinite;
+}
+
+.ed-3d-loading-text {
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
+.ed-3d-loading-bar {
+  width: min(320px, 60%);
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.ed-3d-loading-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: var(--ed-accent, #e8b64f);
+  transition: width 0.15s ease-out;
+}
+
+.ed-3d-loading-pct {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ed-text-dim, #b8b2a5);
+}
+
+@keyframes ed-3d-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-3d-loading-spin {
+    animation: none;
+  }
+}
+
+/* Performance overlay: a small live readout pinned to the viewport corner. */
+.editor-perf-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+  pointer-events: none;
+  min-width: 116px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: rgb(25 25 25 / 0.9);
+  border: 1px solid #464646;
+  color: #e6e6e6;
+  font:
+    11px / 1.5 ui-monospace,
+    "SFMono-Regular",
+    Menlo,
+    Consolas,
+    monospace;
+  letter-spacing: 0.02em;
+}
+
+.editor-perf-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.editor-perf-label {
+  color: var(--ed-text-dim, #b8b2a5);
+}
+
+.editor-perf-value {
+  color: #f0f0f0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- inspector ------------------------------------------------------------------ */
+
+.ed-inspector {
+  flex: 0 0 326px;
+  width: 326px;
+  background: #1d1d1d;
+  border-left: 1px solid var(--ed-line);
+  overflow-y: auto;
+  padding: 12px 12px 28px;
+}
+
+.ed-section {
+  margin-bottom: 10px;
+  padding: 10px;
+  background: #242424;
+  border: 1px solid #3b3b3b;
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.ed-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ed-muted);
+  margin: 0 0 9px;
+  border-bottom: 1px solid var(--ed-line);
+  padding-bottom: 7px;
+}
+
+/* The first (tool) section carries the active tool's hue as a small chip, the
+   other end of the color thread that starts on the rail button. */
+.ed-inspector > .ed-section:first-child > .ed-section-title::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--gold-dim);
+  flex: 0 0 auto;
+}
+
+/* Sliders in the tool panel take the tool's hue too. */
+.ed-inspector input[type="range"] {
+  accent-color: var(--tool-hue, var(--ed-accent));
+}
+
+.ed-hint {
+  color: #9b9b9b;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 4px 0 8px;
+}
+
+/* Paint panel texture-slot tally (Inspector.textureSlotTally): quiet while
+   there is room, amber on the last few slots, red once swatches overflow. */
+.ed-slot-tally {
+  color: #b8b8b8;
+  font-size: 11px;
+  font-weight: 600;
+  margin: 6px 0 4px;
+}
+
+.ed-slot-tally.low {
+  color: #e8b04a;
+}
+
+.ed-slot-tally.over {
+  color: var(--ed-danger);
+}
+
+.ed-slot-warning {
+  color: #ffb4a8;
+  background: rgba(150, 40, 30, 0.22);
+  border-left: 3px solid var(--ed-danger);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 6px 8px;
+  margin: 0 0 8px;
+}
+
+/* The inspector's "this panel failed to build" strip (Inspector.refresh's
+   catch): loud enough that a maker reports it instead of assuming the tool
+   simply has no options. */
+.ed-panel-error {
+  color: #ffb4a8;
+  background: rgba(150, 40, 30, 0.22);
+  border-left: 3px solid #d0503c;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+.ed-muted {
+  color: var(--ed-muted);
+}
+
+.ed-chosen {
+  color: var(--ed-accent);
+  font-weight: 600;
+  font-size: 12px;
+  margin: 4px 0 8px;
+  word-break: break-word;
+}
+
+.ed-row {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.ed-row.ed-wrap {
+  flex-wrap: wrap;
+}
+
+/* Foliage brush: live preview of the grass blade color (hue x lightness). */
+.ed-grass-swatch {
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  margin: 2px 0 8px;
+}
+
+/* Lighting tab sub-groups (Skybox / Birds). */
+.ed-sub-title {
+  margin: 12px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #9b9b9b;
+}
+
+/* One editable canopy sphere in the Tree panel: boxed so a crown of six of
+   them stays readable as six things rather than thirty loose sliders. */
+.ed-tree-volume {
+  margin: 8px 0;
+  padding: 6px 8px 8px;
+  border: 1px solid #2f2f2f;
+  border-radius: 6px;
+  background: #1c1c1c;
+}
+
+.ed-tree-volume .ed-sub-title {
+  margin-top: 2px;
+  color: #64d2ff;
+}
+
+.ed-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--ed-muted);
+  margin: 6px 0;
+}
+
+.ed-slider-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* The value readout doubles as a click-to-type field: it looks like plain
+   text until hovered/focused, then reveals an input affordance. */
+.ed-slider-num {
+  width: 5.5em;
+  text-align: right;
+  padding: 1px 4px;
+  font: inherit;
+  font-family: ui-monospace, monospace;
+  color: var(--ed-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: text;
+}
+
+.ed-slider-num:hover {
+  border-color: var(--ed-line);
+}
+
+.ed-slider-num:focus {
+  outline: none;
+  border-color: var(--tool-hue, var(--ed-accent));
+  background: var(--ed-panel-2);
+}
+
+.ed-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.ed-check input {
+  accent-color: var(--ed-accent);
+}
+
+@media (pointer: coarse) {
+  .ed-snowfall-toggle {
+    min-height: 44px;
+  }
+}
+
+.ed-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.ed-field > span {
+  min-width: 14px;
+  color: var(--ed-muted);
+  font-family: ui-monospace, monospace;
+}
+
+.ed-field input,
+.ed-field select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Asset-fire authoring: compact flat groups in the same graphite/white visual
+   language as the rest of ClaudeCraft Studio. No decorative gradients. */
+.ed-fire-legacy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  margin: 7px 0;
+  border: 1px solid var(--ed-line);
+  border-radius: 6px;
+  background: var(--ed-panel-2);
+  color: var(--ed-muted);
+  font-size: 11px;
+}
+
+.ed-fire-toolbar {
+  justify-content: space-between;
+}
+
+.ed-fire-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin: 8px 0 10px;
+}
+
+.ed-fire-tabs button {
+  width: 100%;
+  min-width: 0;
+}
+
+.ed-fire-tabs button.is-active {
+  color: #171717;
+  background: #eeeeec;
+  border-color: #ffffff;
+}
+
+.ed-fire-group-title {
+  margin: 12px 0 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ed-line);
+  color: #d4d4d2;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.ed-fire-actions {
+  margin-top: 12px;
+}
+
+/* NPC and mob authoring. Flat, compact catalog cards keep a large roster
+   scannable without turning the inspector into a wall of native selects. */
+.ed-catalog-picker {
+  margin: 9px 0;
+  border: 1px solid var(--ed-line);
+  border-radius: 7px;
+  background: var(--ed-panel-2);
+  overflow: hidden;
+}
+
+.ed-catalog-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  background: #292929;
+}
+
+.ed-catalog-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ed-catalog-summary-label {
+  color: var(--ed-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ed-catalog-summary strong {
+  margin-left: auto;
+  color: var(--ed-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ed-catalog-browse {
+  width: calc(100% - 16px);
+  margin: 0 8px 8px;
+}
+
+.ed-catalog-modal {
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
+}
+
+.ed-catalog-modal .ed-catalog-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: min(62vh, 640px);
+}
+
+.ed-catalog-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 105px;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--ed-line);
+  border-bottom: 1px solid var(--ed-line);
+  background: #202020;
+}
+
+.ed-catalog-tools input,
+.ed-catalog-tools select {
+  min-width: 0;
+  height: 30px;
+}
+
+.ed-catalog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 310px;
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.ed-catalog-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #282828;
+  color: var(--ed-text);
+}
+
+.ed-catalog-card:hover {
+  border-color: #5c5c5c;
+  background: #303030;
+}
+
+.ed-catalog-card.active {
+  border-color: #9b8851;
+  background: #34312a;
+}
+
+.ed-catalog-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ed-catalog-copy strong,
+.ed-catalog-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-catalog-copy strong {
+  font-size: 12px;
+}
+
+.ed-catalog-copy small {
+  color: var(--ed-muted);
+  font:
+    10px / 1.3 ui-monospace,
+    monospace;
+}
+
+.ed-catalog-badges {
+  display: flex;
+  max-width: 86px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.ed-catalog-badges i {
+  padding: 2px 4px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #d0d0d0;
+  font:
+    normal 9px / 1.2 ui-monospace,
+    monospace;
+}
+
+.ed-catalog-status {
+  margin: 0;
+  padding: 3px 8px 8px;
+  color: var(--ed-muted);
+  font-size: 10px;
+}
+
+.ed-author-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 6px 0 9px;
+}
+
+.ed-author-stats span {
+  padding: 5px;
+  border: 1px solid var(--ed-line);
+  border-radius: 4px;
+  color: #c8c8c8;
+  background: #252525;
+  font:
+    10px / 1.25 ui-monospace,
+    monospace;
+  text-align: center;
+}
+
+.ed-author-subpanel {
+  margin: 10px 0;
+  padding: 9px;
+  border: 1px solid var(--ed-line);
+  border-radius: 6px;
+  background: #242424;
+}
+
+.ed-author-subpanel > h3 {
+  margin: 0 0 7px;
+  color: #d8d8d8;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ed-author-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 8px 0;
+}
+
+.ed-author-field-label {
+  color: var(--ed-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ed-author-field input,
+.ed-author-field textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ed-author-field textarea {
+  min-height: 76px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.ed-layers {
+  display: flex;
+  flex-direction: column;
+}
+
+.ed-nav-hint {
+  margin-top: 16px;
+  border-top: 1px solid var(--ed-line);
+  padding-top: 8px;
+}
+
+/* Biome palette. */
+.ed-biomes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.ed-light-card {
+  border: 1px solid var(--ed-line);
+  border-radius: var(--ed-radius);
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+
+.ed-light-card.active {
+  border-color: #707070;
+  background: #303030;
+}
+
+/* ---- Scene Collection (placed-object list) ------------------------------------ */
+
+.ed-scene-zone {
+  border: 1px solid #333333;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  background: #1f1f1f;
+}
+
+.ed-scene-zone-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+}
+
+.ed-scene-zone-head input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.ed-scene-zone-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.ed-scene-zone-count {
+  color: var(--ed-muted);
+  font-size: 11px;
+}
+
+.ed-scene-resident {
+  color: #8fd694;
+  border-color: #3f5f42;
+}
+
+.ed-scene-group {
+  margin: 0 6px 4px 14px;
+}
+
+.ed-scene-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--ed-muted);
+  font-size: 11px;
+}
+
+.ed-scene-group-name {
+  flex: 1 1 auto;
+}
+
+.ed-scene-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.ed-scene-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--ed-radius);
+}
+
+.ed-scene-row.active {
+  border-color: #707070;
+  background: #303030;
+}
+
+.ed-scene-row.is-hidden .ed-scene-name {
+  opacity: 0.5;
+}
+
+.ed-scene-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 5px;
+  line-height: 1;
+  color: var(--ed-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.ed-scene-icon svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+.ed-scene-icon:hover {
+  background: #353535;
+  border-radius: var(--ed-radius);
+}
+
+.ed-scene-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 3px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-scene-name:hover {
+  text-decoration: underline;
+}
+
+.ed-scene-name-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ed-scene-badge {
+  flex: 0 0 auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+
+/* ---- texture picker (paint tool dropdown) ------------------------------------- */
+
+.ed-texpick-wrap {
+  position: relative;
+  margin: 6px 0;
+}
+
+.ed-texpick {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.ed-texpick-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-texpick-caret {
+  color: var(--ed-muted);
+  font-size: 10px;
+}
+
+.ed-texpick-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--ed-panel-2);
+  border: 1px solid var(--ed-line-strong);
+  border-radius: var(--ed-radius);
+  box-shadow: var(--ed-shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ed-texpick-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  text-align: left;
+  border: 1px solid transparent;
+}
+
+.ed-texpick-item.active {
+  border-color: #707070;
+  background: #303030;
+}
+
+.ed-texthumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 30px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background-color: #141518;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+
+.ed-texthumb-tint {
+  position: absolute;
+  inset: 0;
+}
+
+/* Texture gallery (the Lock-In picker): a wide modal with a scrollable grid. */
+.ed-texgal {
+  display: flex;
+  flex-direction: column;
+  width: 920px;
+  max-width: 94vw;
+  max-height: 88vh;
+}
+
+.ed-texgal-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: clip;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 2px 6px 78px 2px;
+}
+
+.ed-texgal-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-auto-rows: 42px;
+  gap: 7px 10px;
+  align-content: start;
+  overflow: visible;
+}
+
+.ed-texgal-group {
+  margin: 10px 2px 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ed-muted);
+}
+
+.ed-texgal-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding: 4px;
+  overflow: hidden;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--ed-panel-2);
+  cursor: pointer;
+  z-index: 1;
+  transition:
+    height 180ms cubic-bezier(0.2, 0, 0, 1),
+    transform 180ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 180ms ease;
+}
+
+.ed-texgal-tile:hover {
+  border-color: var(--ed-line-strong);
+}
+
+.ed-texgal-tile:is(:hover, :focus, :focus-visible) {
+  height: 112px;
+  gap: 4px;
+  overflow: visible;
+  background: #303030;
+  border-color: #666666;
+  box-shadow: 0 12px 26px rgb(0 0 0 / 0.46);
+  transform: translateY(-3px);
+  z-index: 20;
+}
+
+.ed-texgal-tile.selected {
+  border-color: #777777;
+  background: #303030;
+}
+
+.ed-texgal-thumb {
+  width: 100%;
+  height: 32px;
+  flex-basis: 32px;
+  transition:
+    height 180ms cubic-bezier(0.2, 0, 0, 1),
+    flex-basis 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.ed-texgal-tile:is(:hover, :focus, :focus-visible) .ed-texgal-thumb {
+  height: 84px;
+  flex-basis: 84px;
+}
+
+.ed-texgal-name {
+  height: 0;
+  max-height: 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--ed-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    height 150ms ease,
+    max-height 150ms ease,
+    opacity 120ms ease,
+    transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.ed-texgal-tile:is(:hover, :focus, :focus-visible) .ed-texgal-name {
+  height: 14px;
+  max-height: 14px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ed-texgal-cur {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #0c0f14;
+  background: var(--ed-accent);
+  border-radius: 999px;
+}
+
+.ed-texgal-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ed-line);
+}
+
+.ed-texgal-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--ed-muted);
+}
+
+.ed-texgal-sel {
+  flex: 1 1 auto;
+  overflow: hidden;
+  font-weight: 600;
+  color: var(--ed-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-subtitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ed-muted);
+  margin: 10px 0 4px;
+}
+
+.ed-weather-modes {
+  flex-wrap: wrap;
+}
+
+.ed-music-area {
+  border: 1px solid transparent;
+  border-radius: var(--ed-radius);
+  padding: 2px 4px;
+}
+
+.ed-music-area.active {
+  border-color: #707070;
+  background: #303030;
+}
+
+.ed-weather-modes button.active {
+  border-color: var(--ed-accent);
+  color: var(--ed-accent);
+}
+
+/* ---- brush alpha picker -------------------------------------------------------- */
+
+.ed-alpha-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.ed-alpha-cell {
+  position: relative;
+}
+
+.ed-alpha {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: #111214;
+  border: 1px solid var(--ed-line);
+  border-radius: 7px;
+}
+
+.ed-alpha canvas {
+  display: block;
+  border-radius: 3px;
+}
+
+.ed-alpha.active {
+  border-color: var(--ed-accent);
+  box-shadow: 0 0 0 1px var(--ed-accent);
+}
+
+.ed-alpha-none {
+  font-size: 9px;
+  color: var(--ed-muted);
+}
+
+/* Decal library cells reuse the brush-alpha picker chrome, sized up so the
+   art is readable, with the name under each so a wall of circles is nameable. */
+.ed-decal-cell {
+  width: 56px;
+  height: 56px;
+  background: #17181b;
+}
+
+.ed-decal-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.ed-decal-name {
+  display: block;
+  width: 56px;
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 1.1;
+  color: var(--ed-muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-alpha-cell .ed-asset-del {
+  width: 16px;
+  height: 16px;
+  top: -5px;
+  right: -5px;
+  font-size: 10px;
+}
+
+.ed-biome {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  padding: 5px 8px;
+}
+
+.ed-biome-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.ed-biome-erase {
+  position: relative;
+  overflow: hidden;
+  background: #141518;
+}
+
+.ed-biome-erase::after {
+  position: absolute;
+  top: 50%;
+  left: -25%;
+  width: 150%;
+  height: 2px;
+  background: #cc6666;
+  content: "";
+  transform: rotate(-45deg);
+}
+
+/* ---- asset browser (bottom drawer over the stage) ----------------------------- */
+
+.ed-assets {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 260px;
+  min-height: 140px;
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+  border-top: 1px solid var(--ed-line-strong);
+  box-shadow: 0 -12px 28px rgb(0 0 0 / 0.3);
+}
+
+/* Grab strip along the drawer's top edge: drag up/down to resize it. */
+.ed-assets-resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -4px;
+  height: 9px;
+  cursor: ns-resize;
+  z-index: 2;
+}
+
+.ed-assets-resize::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  width: 44px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: var(--ed-line-strong);
+}
+
+.ed-assets-resize:hover::after,
+.ed-assets.resizing .ed-assets-resize::after {
+  background: var(--ed-accent);
+}
+
+/* The head, tabs and note rows keep their natural height; only the grid
+   flexes. Without this the tab row shrinks to a sliver and the icon grid
+   paints over it once the catalog overflows the drawer. */
+.ed-assets-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 0;
+  flex: 0 0 auto;
+}
+
+.ed-assets-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ed-muted);
+  margin: 0;
+}
+
+.ed-assets-head input[type="search"] {
+  width: 220px;
+  margin-left: auto;
+}
+
+/* Import Model: rides the browser header (moved out of the topbar). */
+.ed-assets-import {
+  flex: 0 0 auto;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #171717;
+  background: #d7d7d7;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ed-assets-import:hover {
+  background: #eeeeee;
+}
+
+.ed-assets-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 12px 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  flex: 0 0 auto;
+}
+
+.ed-assets-tab {
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--ed-radius) var(--ed-radius) 0 0;
+  background: transparent;
+  color: var(--ed-muted);
+  white-space: nowrap;
+  padding: 5px 10px;
+}
+
+.ed-assets-tab:hover:not(:disabled) {
+  color: var(--ed-text);
+  background: transparent;
+  border-color: transparent;
+}
+
+.ed-assets-tab.active {
+  background: #333333;
+  border-color: #555555;
+  color: #f4f4f4;
+  font-weight: 600;
+  box-shadow: inset 0 -2px #d2d2d2;
+}
+
+.ed-assets-note {
+  color: var(--ed-muted);
+  font-size: 12px;
+  padding: 10px 14px;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.ed-assets-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 12px 0;
+  flex: 0 0 auto;
+}
+
+.ed-assets-subtab {
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
+  background: #232323;
+  color: var(--ed-muted);
+  white-space: nowrap;
+  padding: 2px 10px;
+  font-size: 11px;
+}
+
+.ed-assets-subtab:hover:not(:disabled) {
+  color: var(--ed-text);
+  border-color: #5a5a5a;
+}
+
+.ed-assets-subtab.active {
+  background: #3a3a3a;
+  border-color: #6a6a6a;
+  color: #f4f4f4;
+  font-weight: 600;
+}
+
+/* Chunked-grid sentinel: an invisible row that triggers the next chunk. */
+.ed-assets-more {
+  grid-column: 1 / -1;
+  height: 8px;
+}
+
+.ed-asset-fav {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 50%;
+  background: rgba(20, 20, 20, 0.55);
+  border-color: transparent;
+  color: #8b8b8b;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.ed-asset-cell:hover .ed-asset-fav,
+.ed-asset-fav.active {
+  opacity: 1;
+}
+
+.ed-asset-fav.active {
+  color: #ffd35e;
+}
+
+/* Outline star when off, filled star when the asset is a favourite. */
+.ed-asset-fav::before {
+  content: "\2606";
+}
+
+.ed-asset-fav.active::before {
+  content: "\2605";
+}
+
+/* Collision badge: a small dot in the cell's bottom-right corner. */
+.ed-asset-collision {
+  position: absolute;
+  right: 6px;
+  bottom: 22px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+.ed-asset-collision-baked {
+  background: #6fbf73;
+}
+
+.ed-asset-collision-authored {
+  background: #5ea8ff;
+}
+
+.ed-asset-collision-none {
+  background: transparent;
+  border: 1px solid #7a7a7a;
+}
+
+.ed-assets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+  padding: 8px 12px 12px;
+  overflow-y: auto;
+  background: #191919;
+  border-top: 1px solid var(--ed-line);
+  min-height: 90px;
+  flex: 1 1 auto;
+  align-content: start;
+}
+
+.ed-asset-cell {
+  position: relative;
+}
+
+.ed-asset {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  background: #252525;
+  border-color: #3a3a3a;
+  border-radius: 6px;
+}
+
+.ed-asset:hover:not(:disabled) {
+  background: #303030;
+  border-color: #5a5a5a;
+}
+
+.ed-asset canvas {
+  border-radius: 4px;
+  display: block;
+}
+
+.ed-asset-label {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--ed-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-asset.active .ed-asset-label {
+  color: inherit;
+}
+
+.ed-asset-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 50%;
+  color: #ffb3a8;
+}
+
+.ed-asset-cm {
+  color: #1b1b1b;
+  background: #d2d2d2;
+  border-color: #eeeeee;
+  box-shadow: none;
+}
+
+.ed-asset-cm svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ed-collision-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 12px;
+  padding: 10px;
+  background: #292929;
+  border: 1px solid #464646;
+  border-left: 3px solid var(--gold-dim);
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.ed-collision-hero-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ed-collision-hero-title {
+  color: #f1f1ef;
+  font-size: 12px;
+}
+
+.ed-collision-hero-status {
+  overflow: hidden;
+  color: #b6b8bd;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-collision-hero-btn {
+  flex: 0 0 auto;
+  padding-inline: 10px;
+}
+
+/* ---- toasts ---------------------------------------------------------------------- */
+
+.ed-toasts {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 60;
+  pointer-events: none;
+  max-width: min(480px, 90vw);
+}
+
+.ed-toast {
+  background: #252525;
+  border: 1px solid var(--ed-line-strong);
+  border-left: 3px solid var(--ed-muted);
+  border-radius: var(--ed-radius);
+  padding: 8px 14px;
+  font-size: 12px;
+  box-shadow: 0 10px 26px rgb(0 0 0 / 0.4);
+  opacity: 1;
+  transition: opacity 280ms ease;
+}
+
+.ed-toast-success {
+  border-left-color: var(--color-text-success);
+}
+
+.ed-toast-error {
+  border-left-color: var(--ed-danger);
+}
+
+.ed-toast-out {
+  opacity: 0;
+}
+
+/* ---- modals + the open drawer ------------------------------------------------------ */
+
+.ed-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(10 10 10 / 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.ed-modal {
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line-strong);
+  border-radius: 9px;
+  min-width: 320px;
+  max-width: min(560px, 92vw);
+  padding: 16px 18px;
+  box-shadow: 0 18px 46px rgb(0 0 0 / 0.5);
+}
+
+.ed-modal-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--ed-text);
+}
+
+.ed-modal-body {
+  margin: 0 0 14px;
+  color: var(--ed-text);
+}
+
+.ed-modal-optout {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--ed-muted);
+}
+
+.ed-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ed-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: var(--ed-muted);
+}
+
+.ed-drawer {
+  width: min(760px, 94vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ed-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ed-drawer-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 6px 0 0;
+}
+
+.ed-drawer-tab {
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--ed-radius) var(--ed-radius) 0 0;
+  background: transparent;
+  color: var(--ed-muted);
+}
+
+.ed-drawer-tab.active {
+  background: #d4d4d4;
+  border-color: #dfdfdf;
+  color: #191919;
+  font-weight: 600;
+}
+
+.ed-drawer-body {
+  border: 1px solid var(--ed-line);
+  border-radius: 0 var(--ed-radius) var(--ed-radius) var(--ed-radius);
+  background: var(--ed-panel-2);
+  overflow-y: auto;
+  min-height: 180px;
+}
+
+.ed-drawer-note {
+  color: var(--ed-muted);
+  padding: 14px;
+  margin: 0;
+}
+
+.ed-drawer-note.ed-error {
+  color: var(--color-text-error);
+}
+
+.ed-map-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.ed-map-row {
+  display: grid;
+  grid-template-columns: 1fr 170px minmax(200px, auto);
+  gap: 8px;
+  align-items: center;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--ed-line);
+}
+
+/* Server "mine" rows carry a status column. */
+.ed-map-row.has-status {
+  grid-template-columns: 1fr 170px 90px minmax(200px, auto);
+}
+
+.ed-map-row:not(.ed-map-head):hover {
+  background: #303030;
+}
+
+.ed-map-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ed-muted);
+  position: sticky;
+  top: 0;
+  background: var(--ed-panel-2);
+}
+
+.ed-map-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-map-muted {
+  color: var(--ed-muted);
+  font-size: 11px;
+}
+
+.ed-map-status {
+  font-size: 11px;
+  color: var(--ed-muted);
+}
+
+.ed-map-status.is-public {
+  color: var(--color-text-success);
+}
+
+.ed-map-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  overflow: visible;
+}
+
+.ed-map-draft {
+  color: var(--ed-accent);
+}
+
+.ed-drawer-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px;
+}
+
+/* ---- help modal + tutorial tour ------------------------------------------------------ */
+
+.ed-help-modal {
+  width: min(640px, 92vw);
+  max-height: 84vh;
+  overflow-y: auto;
+}
+
+.ed-help-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ed-muted);
+  margin: 14px 0 6px;
+  border-bottom: 1px solid var(--ed-line);
+  padding-bottom: 4px;
+}
+
+.ed-help-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ed-help-list li {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--ed-text);
+}
+
+.ed-help-term {
+  color: var(--ed-accent);
+  font-weight: 600;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+
+.ed-help-modal .ed-modal-actions {
+  margin-top: 14px;
+}
+
+/* Highlight ring: the huge shadow dims everything around the anchored region;
+   pointer-events stay off so the UI underneath remains usable. */
+.ed-tour-ring {
+  position: fixed;
+  z-index: 70;
+  border: 2px solid var(--ed-accent);
+  border-radius: 8px;
+  box-shadow: 0 0 0 200vmax rgba(4, 6, 10, 0.55);
+  pointer-events: none;
+  transition:
+    left 160ms ease,
+    top 160ms ease,
+    width 160ms ease,
+    height 160ms ease;
+}
+
+.ed-tour-card {
+  position: fixed;
+  z-index: 71;
+  width: min(340px, 88vw);
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line-strong);
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+}
+
+.ed-tour-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--ed-accent);
+}
+
+.ed-tour-body {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--ed-text);
+}
+
+.ed-tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ed-tour-count {
+  color: var(--ed-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.ed-tour-spacer {
+  flex: 1;
+}
+
+/* ---- reduced motion ----------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-toast,
+  .ed-tour-ring,
+  .ed-tour-card,
+  .ed-brand,
+  .ed-brand-name,
+  .ed-texgal-tile,
+  .ed-texgal-thumb,
+  .ed-texgal-name,
+  button {
+    transition: none;
+  }
+}
+
+/* ---- narrow viewports ----------------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .ed-actions button:not(.primary) {
+    padding: 6px 7px;
+  }
+
+  .ed-inspector {
+    flex-basis: 260px;
+    width: 260px;
+  }
+}
+
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ---- dungeon-layout mode (src/editor/dungeon/dungeon_mode.ts) -------------------------- */
+
+.dungeon-panel {
+  /* Docked left, beside the tool rail, so the editor's right-hand inspector
+     stays fully visible while the dungeon mode runs. */
+  position: fixed;
+  top: 68px;
+  left: 88px;
+  z-index: 40;
+  width: 300px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  border-radius: 8px;
+  padding: 10px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.dungeon-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+
+/* Draggable window: the header is the grab handle, so it must not look like
+   text you could select mid-drag. Its buttons keep their own cursor. */
+.dungeon-panel-drag {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.dungeon-panel-drag.dragging {
+  cursor: grabbing;
+}
+
+.dungeon-panel-drag button {
+  cursor: pointer;
+}
+
+.dungeon-panel-hint {
+  color: var(--ed-dim, #9aa4b2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.dungeon-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dungeon-panel-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--ed-line);
+  padding-top: 8px;
+}
+
+.dungeon-selection-kind {
+  font-weight: 600;
+}
+
+.dungeon-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dungeon-field span {
+  color: var(--ed-dim, #9aa4b2);
+  font-size: 12px;
+}
+
+.dungeon-field input,
+.dungeon-field select {
+  width: 130px;
+}
+
+.dungeon-panel-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.dungeon-issue-error {
+  color: #ff7a7a;
+}
+
+.dungeon-issue-warning {
+  color: #ffc46b;
+}
+
+.dungeon-issue-ok {
+  color: #7fd88f;
+}
+
+.dungeon-panel-status {
+  font-size: 12px;
+  color: var(--ed-dim, #9aa4b2);
+}
+
+/* Collapsed dungeon panel: only the header pill stays; everything else folds
+   away so the floor plan is unobstructed. */
+.dungeon-panel.collapsed > :not(.dungeon-panel-header) {
+  display: none;
+}
+
+.dungeon-panel.collapsed {
+  width: auto;
+}
+
+/* Toolbar minimap toggle + Map button group. */
+.ed-map-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Corner minimap overlay (lives inside the 3D host). */
+.ed-minimap {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #707070;
+  outline: 1px solid #1a1a1a;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.48);
+  z-index: 20;
+  pointer-events: none;
+}
+.ed-minimap canvas {
+  position: absolute;
+  inset: 0;
+  width: 168px;
+  height: 168px;
+  display: block;
+}
+
+/* Map window modal (current zone / full world). */
+.ed-mapwin-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(10 10 10 / 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.ed-mapwin {
+  background: #242424;
+  border: 1px solid #555555;
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 22px 56px rgb(0 0 0 / 0.58);
+}
+.ed-mapwin-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.ed-mapwin-title {
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  margin-right: auto;
+  color: var(--ed-text, #e8e8e8);
+}
+.ed-mapwin-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #4b4b4b;
+  background: #2c2c2c;
+  color: var(--ed-text, #e8e8e8);
+  cursor: pointer;
+  font: inherit;
+}
+.ed-mapwin-btn:hover {
+  background: #3a3a3a;
+}
+.ed-mapwin-ai {
+  border-color: #696969;
+  background: #353535;
+  box-shadow: none;
+}
+.ed-mapwin-btn:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+.ed-mapwin-canvas-wrap {
+  position: relative;
+  width: 460px;
+  height: 460px;
+}
+.ed-mapwin-canvas-wrap canvas {
+  position: absolute;
+  inset: 0;
+  width: 460px;
+  height: 460px;
+  border-radius: 9px;
+  border: 1px solid #555555;
+  box-shadow: none;
+  display: block;
+}
+.ed-mapwin-marker {
+  cursor: crosshair;
+}
+.ed-mapwin-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding-top: 10px;
+}
+.ed-mapwin-pin-hint {
+  flex: 1;
+  color: var(--ed-muted);
+  font-size: 12px;
+}
+.ed-mapwin-teleport:not(:disabled) {
+  border-color: #7c704c;
+  background: #343126;
+  color: #eadba9;
+}
+.ed-mapwin-status {
+  min-height: 1.25em;
+  max-width: 460px;
+  padding-top: 8px;
+  color: #b8b8b8;
+  font-size: 12px;
+}
+
+/* Quiet, Photoshop-style scrollbars keep dense panels from adding another
+   visual accent. */
+.ed-root * {
+  scrollbar-color: #555555 transparent;
+  scrollbar-width: thin;
+}
+
+.ed-root *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ed-root *::-webkit-scrollbar-thumb {
+  background: #555555;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-clip: padding-box;
+}
+
+.ed-root *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Tree Studio banner: the scratch scene has no other chrome, so the panel has
+   to say plainly where you are and how to get back. */
+.ed-tree-studio-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0 8px;
+  padding: 8px 10px;
+  border: 1px solid #3f6f52;
+  border-left: 3px solid #59c98a;
+  border-radius: 6px;
+  background: #16241d;
+}
+
+.ed-tree-studio-banner strong {
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #59c98a;
+}
+
+.ed-tree-studio-banner span {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #9fb0a6;
+}
+
+/* Camera view toggles in the top bar: compact icon squares mirroring the
+   inspector's Camera tab switches. Flat at rest like every header command;
+   the pressed (active) state carries the same surface as .active buttons
+   plus the accent text so on/off reads at a glance. */
+.ed-cam-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 4px;
+  padding: 0 6px;
+  border-left: 1px solid var(--ed-line);
+  border-right: 1px solid var(--ed-line);
+}
+
+.ed-cam-cluster > .ed-cam-btn2 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ed-topbar-control-h);
+  min-width: var(--ed-topbar-control-h);
+  height: var(--ed-topbar-control-h);
+  min-height: var(--ed-topbar-control-h);
+  padding: 0;
+  border-radius: var(--ed-radius);
+  color: #9a9a9a;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.ed-cam-cluster > .ed-cam-btn2:hover {
+  color: #f1f1f1;
+  background: #292929;
+  border-color: #353535;
+}
+
+.ed-cam-cluster > .ed-cam-btn2.active {
+  color: #ffd100;
+  background: #2c2818;
+  border-color: #4a4022;
+}
+
+.ed-cam-cluster > .ed-cam-btn2 svg {
+  display: block;
+}

@@ -1,0 +1,178 @@
+// The Drowned Temple — the portal-reached side-wing on the Glimmermere.
+// Verifies the moongate dungeon is registered, enterable with its full spawn
+// set, that Ysolei's boss mechanics fire, the new 'temple' interior collides,
+// and the lead-up quest chain + boss loot table hang together.
+import { describe, expect, it } from 'vitest';
+import { isBlocked } from '../src/sim/colliders';
+import {
+  ARENA_X_MIN,
+  DUNGEON_LIST,
+  DUNGEONS,
+  INSTANCE_X_BASE,
+  ITEMS,
+  instanceOrigin,
+  MOBS,
+  NPCS,
+  QUESTS,
+} from '../src/sim/data';
+import { Sim } from '../src/sim/sim';
+import { dist2d } from '../src/sim/types';
+import { groundHeight } from '../src/sim/world';
+
+function makeWorld() {
+  return new Sim({ seed: 42, playerClass: 'warrior', noPlayer: true });
+}
+
+function teleport(sim: Sim, pid: number, x: number, z: number) {
+  const e = sim.entities.get(pid)!;
+  e.pos.x = x;
+  e.pos.z = z;
+  e.pos.y = groundHeight(x, z, sim.cfg.seed);
+  e.prevPos = { ...e.pos };
+}
+
+function nearestMob(sim: Sim, templateId: string, from: { x: number; z: number }) {
+  let best: any = null,
+    bestD = Infinity;
+  for (const e of sim.entities.values()) {
+    if (e.kind !== 'mob' || e.dead || e.templateId !== templateId) continue;
+    const d = Math.hypot(e.pos.x - from.x, e.pos.z - from.z);
+    if (d < bestD) {
+      bestD = d;
+      best = e;
+    }
+  }
+  return best;
+}
+
+describe('The Drowned Temple', () => {
+  it('is registered as a portal dungeon at its own instance band', () => {
+    const t = DUNGEONS.drowned_temple;
+    expect(t).toBeTruthy();
+    expect(t.index).toBe(3);
+    // The open-air lagoon rework (drowned_temple.md): its own authored field.
+    expect(t.interior).toBe('drowned_temple');
+    expect(t.suggestedPlayers).toBe(5);
+    // it joins the map-derived dungeon list (the moongate draws itself there)
+    expect(DUNGEON_LIST.some((d) => d.id === 'drowned_temple')).toBe(true);
+    // The index-3 origin keeps its offset in the relocated instance plane.
+    expect(instanceOrigin(3, 0).x).toBe(INSTANCE_X_BASE + 2700);
+    expect(instanceOrigin(3, 0).x).toBeLessThan(ARENA_X_MIN);
+  });
+
+  it('is enterable through the moongate with its full spawn set, and exits home', () => {
+    const sim = makeWorld();
+    const a = sim.addPlayer('warrior', 'Aleph');
+    const door = DUNGEONS.drowned_temple.doorPos;
+    teleport(sim, a, door.x, door.z);
+    sim.enterDungeon('drowned_temple', a);
+    const ea = sim.entities.get(a)!;
+    expect(ea.pos.x).toBeGreaterThan(INSTANCE_X_BASE + 2600);
+    const slot = sim.instanceSlotAt(ea.pos)!;
+    const origin = instanceOrigin(3, slot);
+
+    const ysolei = nearestMob(sim, 'ysolei', origin);
+    expect(ysolei).toBeTruthy();
+    expect(ysolei.level).toBe(18);
+    expect(nearestMob(sim, 'choirmother_selthe', origin)).toBeTruthy();
+    expect(nearestMob(sim, 'pearlguard_sentinel', origin)).toBeTruthy();
+
+    sim.leaveDungeon(a);
+    expect(dist2d(ea.pos, { x: door.x, y: 0, z: door.z })).toBeLessThan(10);
+  });
+
+  it('Ysolei summons Moonspawn at hp thresholds and enrages below 30%', () => {
+    const sim = makeWorld();
+    const a = sim.addPlayer('warrior', 'Aleph');
+    const door = DUNGEONS.drowned_temple.doorPos;
+    teleport(sim, a, door.x, door.z);
+    sim.enterDungeon('drowned_temple', a);
+    const ea = sim.entities.get(a)!;
+    const origin = instanceOrigin(3, sim.instanceSlotAt(ea.pos)!);
+
+    const ysolei = nearestMob(sim, 'ysolei', origin);
+    expect(ysolei).toBeTruthy();
+    expect(ysolei.enraged).toBe(false);
+    const moonspawnNear = () =>
+      [...sim.entities.values()].filter(
+        (e) =>
+          e.kind === 'mob' &&
+          !e.dead &&
+          e.templateId === 'moonspawn' &&
+          Math.abs(e.pos.x - origin.x) < 120,
+      ).length;
+    expect(moonspawnNear()).toBe(0);
+
+    ysolei.inCombat = true;
+    ysolei.hp = Math.floor(ysolei.maxHp * 0.6);
+    sim.tick();
+    expect(moonspawnNear()).toBe(2); // first wave of 2
+
+    ysolei.hp = Math.floor(ysolei.maxHp * 0.3);
+    sim.tick();
+    expect(moonspawnNear()).toBe(4); // second wave -> 4 total
+    expect(ysolei.enraged).toBe(true); // and the enrage flips below 30%
+  });
+
+  it('the lagoon temple has solid cliffs and columns but open walkways', () => {
+    const sim = makeWorld();
+    const o = instanceOrigin(3, 0);
+    const seed = sim.cfg.seed;
+    // The Choir Court's stage is open; the lagoon off its rim is walled by
+    // the generated cliffs, and a colonnade column is solid.
+    expect(isBlocked(seed, o.x + 0, o.z + 0)).toBe(false);
+    expect(isBlocked(seed, o.x + 0, o.z + 26)).toBe(true);
+    expect(isBlocked(seed, o.x - 15.5, o.z - 64)).toBe(true);
+    // The Moon Altar island round the altar stone is open ground.
+    expect(isBlocked(seed, o.x - 18, o.z + 206)).toBe(false);
+  });
+
+  it("Ysolei's blue drop table is an exclusive one-of-four and resolves to real items", () => {
+    const ysolei = MOBS.ysolei;
+    const group = ysolei.loot.filter((l) => l.rollGroup === 'ysolei_blue');
+    // The lower dungeons' normal blues (tests/lower_dungeon_blues.test.ts):
+    // her three Moonwrack chests and the Moonwrack Stave, guaranteed.
+    expect(group.length).toBe(4);
+    const sum = group.reduce((s, l) => s + l.chance, 0);
+    expect(sum).toBeCloseTo(1.0, 5);
+    for (const l of ysolei.loot) {
+      if (l.itemId) expect(ITEMS[l.itemId], `loot item ${l.itemId}`).toBeTruthy();
+    }
+    // every rollGroup blue is rare: a chest per archetype plus the stave
+    for (const l of group) expect(ITEMS[l.itemId!].quality).toBe('rare');
+    const chests = group.filter((l) => ITEMS[l.itemId!].slot === 'chest');
+    expect(new Set(chests.map((l) => ITEMS[l.itemId!].armorType))).toEqual(
+      new Set(['mail', 'leather', 'cloth']),
+    );
+    expect(group.map((l) => l.itemId).filter((id) => ITEMS[id!].kind === 'weapon')).toEqual([
+      'moonwrack_stave',
+    ]);
+  });
+
+  it('the Tidewatcher offers a self-contained chain ending at the 5-player finale', () => {
+    const ondrel = NPCS.tidewatcher_ondrel;
+    expect(ondrel).toBeTruthy();
+    const chain = [
+      'q_glimmermere_light',
+      'q_tarn_waders',
+      'q_drowned_choir',
+      'q_palecoil',
+      'q_silence_the_choir',
+      'q_drowned_moon',
+    ];
+    for (const q of chain) {
+      expect(QUESTS[q], `quest ${q}`).toBeTruthy();
+      expect(ondrel.questIds).toContain(q);
+    }
+    // the chain links end-to-end and the finale is a group kill on Ysolei
+    expect(QUESTS.q_tarn_waders.requiresQuest).toBe('q_glimmermere_light');
+    expect(QUESTS.q_drowned_choir.requiresQuest).toBe('q_tarn_waders');
+    expect(QUESTS.q_silence_the_choir.requiresQuest).toBe('q_drowned_choir');
+    expect(QUESTS.q_drowned_moon.requiresQuest).toBe('q_silence_the_choir');
+    expect(QUESTS.q_drowned_moon.suggestedPlayers).toBe(5);
+    const objective = QUESTS.q_drowned_moon.objectives[0];
+    expect(objective.type).toBe('kill');
+    if (objective.type !== 'kill') throw new Error('q_drowned_moon must be a kill quest');
+    expect(objective.targetMobId).toBe('ysolei');
+  });
+});

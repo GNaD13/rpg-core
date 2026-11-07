@@ -1,0 +1,2 @@
+/* MIT test uses system fonts only. */
+html,body,button,input { font-family: system-ui,sans-serif; }

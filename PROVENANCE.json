@@ -1,0 +1,33 @@
+{
+  "upstream": "World of ClaudeCraft",
+  "upstreamVersion": "0.45.6",
+  "upstreamCopyright": "Copyright (c) 2026 Levy Street",
+  "license": "MIT for upstream source; third party packages separate",
+  "simulationFilesCompared": 1566,
+  "simulationFilesChanged": 0,
+  "simulationTreeSha256": "a527b67f49c7cdaafcb3205acd7fc19ccd5f4d676191835366b6f6a685acdf4d",
+  "comparison": "sorted relative path + NUL + SHA256 bytes, excluding instruction files",
+  "media": "Upstream public media and original map placements not copied",
+  "integration": "Shared product-world adapter, owned-asset placeholders, original REST+WS login/realm/character flow, isolated PostgreSQL16, local stack launcher",
+  "externalSymlinks": 0,
+  "scope": "Authoritative multiplayer core and reusable MIT engineering source restored",
+  "restoredEngineeringFiles": 8114,
+  "restoredFilesByteIdentical": 8107,
+  "restoredFilesAdapted": [
+    "server/main.ts",
+    "server/sim_boot_config.ts",
+    "scripts/lib/world_auth.mjs",
+    "tsconfig.admin.json",
+    "tsconfig.bot.json",
+    "Dockerfile",
+    ".dockerignore"
+  ],
+  "unchangedCriticalPaths": [
+    "server/game.ts",
+    "server/db.ts",
+    "server/ws_auth.ts",
+    "src/net/online.ts"
+  ],
+  "worldProtocolEpoch": 48001,
+  "privateExtensions": "Not copied; original public bot detector stub used"
+}

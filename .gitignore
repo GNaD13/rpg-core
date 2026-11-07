@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.cache/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+
+dist-*/
+*.log
+.venv/
+**/__pycache__/
+android/.gradle/
+android/app/build/
+ios/App/Pods/
+release/

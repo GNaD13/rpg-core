@@ -1,0 +1,281 @@
+// Regression pins for the target-of-target mini-frame placement (src/styles/hud.css
+// and the mobile arm in hud.mobile.css). The mini used to anchor BELOW the target
+// frame's right edge (right: -6px; top: calc(100% + 6px)), the same band the
+// #tf-debuffs strip occupies: the strip wraps full-width, so at real aura counts its
+// first row reached the right edge and collided with the mini. The fix anchors the
+// mini BESIDE the frame (left of nothing but free canvas), leaving the whole
+// below-frame band to the strip; these pins keep the anchor, the compounded mini
+// zoom, the portrait-left orientation, and the deliberate mobile arm from regressing.
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+// Biome wraps long declarations across lines, so pin against a whitespace-normalized
+// view of the source (collapse runs of whitespace, drop the space a wrap leaves
+// inside parentheses); a reformat then never breaks a pin, only a value change does.
+const flat = (css: string): string =>
+  css.replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')');
+const hudCss = flat(readFileSync(new URL('../src/styles/hud.css', import.meta.url), 'utf8'));
+const hudMobileCss = flat(
+  readFileSync(new URL('../src/styles/hud.mobile.css', import.meta.url), 'utf8'),
+);
+const tokensCss = flat(readFileSync(new URL('../src/styles/tokens.css', import.meta.url), 'utf8'));
+
+const rule = (css: string, selector: string): string => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = css.match(new RegExp(`${escaped} \\{([^}]*)\\}`));
+  return match?.[1] ?? '';
+};
+
+describe('target-of-target frame sits BESIDE the target frame', () => {
+  const tot = rule(hudCss, '#target-frame > #totarget-frame');
+
+  it('anchors to the right of the frame, top aligned, gap zoom-compensated', () => {
+    // Percentage offsets resolve against the unzoomed containing block but px
+    // lengths are multiplied by the element's zoom, so the 4px gap divides by
+    // the zoom factor to stay a true 4px at every targetFrameScale.
+    expect(tot).toContain('left: calc(100% + 4px / (0.74 * var(--target-frame-scale, 1)));');
+    expect(tot).toContain('top: calc(4px / (0.74 * var(--target-frame-scale, 1)));');
+    expect(tot).not.toContain('right:');
+  });
+
+  it('mini zoom really applies and compounds the target frame scale', () => {
+    // The selector needs the #target-frame prefix: a bare #totarget-frame (1,0,0)
+    // loses the zoom declaration to the children-zoom rule
+    // #target-frame > :not(.tf-move-btn) at (1,1,0), which is why the original
+    // plain `zoom: 0.74` never actually applied.
+    expect(tot).toContain('zoom: calc(0.74 * var(--target-frame-scale, 1));');
+  });
+
+  it('old below-frame anchor (the aura-strip band) must not return', () => {
+    expect(hudCss).not.toContain('right: -6px; top: calc(100% + 6px);');
+    // Pin moved with the stock target seat: the frame now sits directly above the
+    // action bar, so the strip owns the band ABOVE the frame rather than the one
+    // below it, which would paint across the hotbar.
+    expect(rule(hudCss, '#target-frame > #tf-debuffs')).toContain('bottom: calc(100% + 8px);');
+    expect(rule(hudCss, '#target-frame > #tf-debuffs')).not.toContain('top:');
+  });
+
+  // Players who move the target frame off the stock seat get the classic
+  // below-frame strip back through their own setting (targetAurasBelowFrame,
+  // src/ui/aura_bar_side.ts): keyed on the setting's body class, never on the
+  // frame's move state, mirroring the player buff row's auraBarBelowFrame.
+  // NOTE: rule() matches the FIRST occurrence of the selector text, and the
+  // base '#target-frame > #tf-debuffs {' rule must stay authored ABOVE the
+  // body-class override, or the base pin above silently reads the override.
+  it('hangs the strip below the frame only via body.target-auras-below-frame', () => {
+    const below = rule(hudCss, 'body.target-auras-below-frame #target-frame > #tf-debuffs');
+    expect(below).toContain('top: calc(100% + 8px);');
+    expect(below).toContain('bottom: auto;');
+    expect(hudCss).not.toMatch(/#target-frame\.tf-detached[^{]*#tf-debuffs/);
+  });
+
+  // A player report: on the stock seat (directly over the action bar) the
+  // below-frame strip painted across the hotbar, so the setting was only usable
+  // after moving the frame. With the setting on (desktop), the stock seat rises
+  // by one strip row (the 8px hang, an own-aura icon, its 13px timer, all under
+  // the children zoom) and anchors by its BOTTOM edge, so the target's in-flow
+  // cast bar grows the frame upward instead of pushing the strip onto the bar.
+  // A moved frame writes inline top plus bottom: auto, which outrank the sheet.
+  describe('below-frame strip on the stock seat', () => {
+    const BELOW = 'body.target-auras-below-frame:not(.mobile-touch)';
+
+    it('defines the one-row lift only with the setting on, never on touch', () => {
+      expect(rule(hudCss, BELOW)).toContain(
+        '--target-aura-band-lift: calc((8px + var(--aura-size-own) + 13px) * var(--target-frame-scale, 1));',
+      );
+      // Set nowhere else, so the setting-off layout reads it as unset.
+      expect(hudCss.match(/--target-aura-band-lift:/g) ?? []).toHaveLength(1);
+      expect(hudMobileCss).not.toContain('--target-aura-band-lift');
+      // The hang the lift reserves is the same 8px the below rule hangs by.
+      expect(rule(hudCss, 'body.target-auras-below-frame #target-frame > #tf-debuffs')).toContain(
+        'top: calc(100% + 8px);',
+      );
+    });
+
+    it('bottom-anchors every stock seat variant one strip row above the pair floor', () => {
+      const one = rule(hudCss, `${BELOW} #target-frame`);
+      expect(one).toContain('top: auto;');
+      expect(one).toContain(
+        'bottom: calc(var(--unit-frame-seat-floor) + var(--stance-row-lift, 0px) + var(--pet-row-lift, 0px) + var(--target-aura-band-lift));',
+      );
+      expect(
+        rule(
+          hudCss,
+          'body.target-auras-below-frame.show-actionbar2:not(.mobile-touch) #target-frame',
+        ),
+      ).toContain(
+        'bottom: calc(var(--unit-frame-seat-floor) + var(--socket-size) + var(--socket-row-gap) + var(--stance-row-lift, 0px) + var(--pet-row-lift, 0px) + var(--target-aura-band-lift));',
+      );
+      expect(
+        rule(
+          hudCss,
+          'body.target-auras-below-frame.show-actionbar2.show-actionbar3:not(.mobile-touch) #target-frame',
+        ),
+      ).toContain(
+        'bottom: calc(var(--unit-frame-seat-floor) + 2 * (var(--socket-size) + var(--socket-row-gap)) + var(--stance-row-lift, 0px) + var(--pet-row-lift, 0px) + var(--target-aura-band-lift));',
+      );
+      // The floor is the player frame's bottom edge: the seat offset minus the
+      // docked player frame's 64px height (the offset's own 70px is that height
+      // plus the 6px bottom-bar inset).
+      expect(tokensCss).toContain(
+        '--unit-frame-seat-floor: calc(var(--unit-frame-seat-offset) - 64px);',
+      );
+    });
+
+    it('lifts the player cast bar and swing timers by the same step', () => {
+      // Without this the lifted frame parks on the centred swing timers in
+      // every stance-bar or two-bar layout (warriors always show the stance
+      // row), hiding a timer the player acts on.
+      const seats: [string, number][] = [
+        ['#castbar', 260],
+        ['#swingbar', 234],
+        ['#swingbar-offhand', 220],
+      ];
+      for (const [id, px] of seats) {
+        expect(rule(hudCss, `${BELOW} ${id}`)).toContain(
+          `bottom: calc(${px}px + var(--target-aura-band-lift));`,
+        );
+        expect(
+          rule(hudCss, `body.target-auras-below-frame.show-actionbar3:not(.mobile-touch) ${id}`),
+        ).toContain(`bottom: calc(${px + 52}px + var(--target-aura-band-lift));`);
+      }
+    });
+  });
+
+  // The touch seat pins the target frame to the top edge, so an above-frame
+  // strip is off screen there: the mobile sheet hangs it below unconditionally
+  // (a device never sheds target debuff timers, a signal a player reacts to).
+  it('mobile hangs the strip below the frame regardless of the setting', () => {
+    const touch = rule(hudMobileCss, 'body.mobile-touch #target-frame > #tf-debuffs');
+    expect(touch).toContain('top: calc(100% + 8px);');
+    expect(touch).toContain('bottom: auto;');
+  });
+
+  it('reads portrait-left like every other unit frame (mirror overrides dropped)', () => {
+    // The #target-frame prefix outranks the LATER #target-frame .portrait-wrap /
+    // .uf-bars mirror rules, which otherwise win the same-specificity tie on
+    // source order and mirror the mini too.
+    expect(rule(hudCss, '#target-frame > #totarget-frame .portrait-wrap')).toContain('order: 1;');
+    const bars = rule(hudCss, '#target-frame > #totarget-frame .uf-bars');
+    expect(bars).toContain('order: 2;');
+    expect(bars).toContain('width: 232px;');
+    expect(bars).toContain('margin-left: -14px;');
+    expect(bars).toContain('margin-right: 0;');
+    expect(bars).not.toContain('border-radius:');
+  });
+
+  it('boss-ranked target widens the gap past the boss chrome overhangs', () => {
+    // The boss move button sits at right: -30px (vs -10px normally) and the
+    // dragon emblem overhangs the portrait side, so the mini needs a true 22px
+    // gap to clear the art without preserving the old plate spacing.
+    const boss = rule(hudCss, '#target-frame.boss > #totarget-frame');
+    expect(boss).toContain('left: calc(100% + 22px / (0.74 * var(--target-frame-scale, 1)));');
+  });
+
+  it('rank chrome binds to the target portrait only, never the mini', () => {
+    // The mini is a #target-frame descendant, so a bare descendant selector
+    // would decorate the mini's portrait with the target's elite ring / boss
+    // emblem / boss portrait-chrome strip too.
+    expect(hudCss).toContain('#target-frame.elite > .portrait-wrap .portrait {');
+    expect(hudCss).toContain('#target-frame.boss > .portrait-wrap::before {');
+    expect(hudCss).toContain('#target-frame.boss > .portrait-wrap .portrait {');
+    expect(hudCss).not.toContain('#target-frame.elite .portrait {');
+    expect(hudCss).not.toContain('#target-frame.boss .portrait {');
+    expect(hudCss).not.toContain('#target-frame.boss .portrait-wrap::before {');
+  });
+
+  it('mobile makes a deliberate placement decision (no default fallthrough)', () => {
+    // The option is reachable from the mobile options sheet, so the mini keeps
+    // the beside-the-frame anchor there as an EXPLICIT rule (verified to fit at
+    // 844x390 landscape); hiding or moving it must stay a conscious change here.
+    const mobile = rule(hudMobileCss, 'body.mobile-touch #target-frame > #totarget-frame');
+    // W13: re-derived against the redesigned desktop seat (4px beside, 4px down,
+    // both divided out of the mini's own zoom) after the unit-frame slice moved
+    // the desktop pair off 18px/0. Mobile restates the desktop offsets so the
+    // later mobile mirror rules cannot win the same-specificity tie.
+    expect(mobile).toContain('left: calc(100% + 4px / (0.74 * var(--target-frame-scale, 1)));');
+    expect(mobile).toContain('top: calc(4px / (0.74 * var(--target-frame-scale, 1)));');
+  });
+});
+
+// The mini frame joined the "Unlock interface" frame table (interface_unlock_core.ts
+// HUD_FRAME_SPECS), so a player can give it a spot of its own instead of it riding
+// wherever the target frame was dragged. Positioning it re-homes it onto #ui
+// (detachToUiRoot), which drops EVERY `#target-frame > #totarget-frame` rule pinned
+// above at once: these pins are the detached arm that has to restate them.
+describe('target-of-target frame: the moved (detached) arm', () => {
+  const detached = rule(hudCss, '#totarget-frame.hud-frame-detached');
+
+  it('positions off its own left/top with the other re-homed frames', () => {
+    // The shared block, so a dragged mini cannot be left stuck at its docked spot
+    // with its saved coordinates silently ignored (what #pet-frame's own
+    // `position: relative` used to do before it was id-qualified here).
+    expect(hudCss).toContain('#totarget-frame.hud-frame-detached, #stancebar.hud-frame-detached,');
+  });
+
+  it('moves the mini zoom onto the CHILDREN, never the positioned frame itself', () => {
+    // zoom on a positioned frame also multiplies its used left/top, which is
+    // exactly what would break the MovableFrame drag math; the player and target
+    // frames zoom their children for the same reason. The mini factor and the
+    // targetFrameScale compounding are unchanged from the docked arm above.
+    expect(
+      rule(hudCss, '#totarget-frame.hud-frame-detached > :not(.mf-resize-grip, .tf-frame-label)'),
+    ).toContain('zoom: calc(0.74 * var(--target-frame-scale, 1));');
+    expect(detached).not.toContain('zoom:');
+  });
+
+  it('restates the bar-height var it no longer inherits from #target-frame', () => {
+    // #target-frame declares --uf-bar-height for its subtree; re-homed onto #ui
+    // the mini would fall back to the 15px default and stop tracking the Target
+    // Frame Height setting.
+    expect(detached).toContain('--uf-bar-height: var(--target-frame-height, 15px);');
+  });
+
+  it('restates portrait-left, which the re-home leaves nothing else to supply', () => {
+    // Deliberately NOT a specificity story (PR review caught the earlier wording):
+    // makeUiRootDetacher re-parents the frame onto #ui, so the docked rule and the
+    // LATER #target-frame .portrait-wrap / .uf-bars mirror rules are ALL descendant
+    // selectors with no ancestor left to match. They drop out together, nothing
+    // contests anything, and the order has to be declared again from scratch.
+    expect(rule(hudCss, '#totarget-frame.hud-frame-detached .portrait-wrap')).toContain(
+      'order: 1;',
+    );
+    const bars = rule(hudCss, '#totarget-frame.hud-frame-detached .uf-bars');
+    expect(bars).toContain('order: 2;');
+    expect(bars).toContain('width: 232px;');
+    expect(bars).toContain('margin-left: -14px;');
+    expect(bars).toContain('margin-right: 0;');
+    expect(bars).not.toContain('border-radius:');
+  });
+
+  it('shows an empty mini as an arrangeable placeholder while the interface is unlocked', () => {
+    // Otherwise the frame is display:none whenever the target has no target,
+    // which is most of the time, and there would be nothing to drag.
+    expect(hudCss).toContain(
+      'body.interface-unlocked #totarget-frame.tf-unlocked, body.interface-unlocked #pet-frame.tf-unlocked,',
+    );
+  });
+});
+
+// The mini is the ONE governed frame nested inside another one, so the two rules
+// that assume governed frames are siblings both had to learn about it. Caught by
+// re-shooting the arrange-mode screenshot: the frame showed its name chip but no
+// drag ever started, and the press fell through to the world.
+describe('target-of-target frame: reachable while the interface is unlocked', () => {
+  it('is carved out of the unlocked-frame pointer-inert rule', () => {
+    // body.interface-unlocked .tf-unlocked :not(...) is a DESCENDANT selector and
+    // #target-frame is itself governed, so the mini matched it and became
+    // pointer-events: none !important, the one arrangeable frame nothing could grab.
+    expect(hudCss).toContain(
+      'body.interface-unlocked .tf-unlocked :not(.tf-move-btn):not(.mf-resize-grip):not(#totarget-frame) { pointer-events: none !important; }',
+    );
+  });
+
+  it("leaves the mini's own CONTENTS inert, so a grab anywhere on it drags the mini", () => {
+    // Only the frame itself is carved out: its portrait and bars still match the
+    // rule through it, which is what makes the whole mini one drag handle rather
+    // than a portrait that swallows the press.
+    expect(hudCss).not.toContain(':not(#totarget-frame *)');
+    expect(hudCss).not.toContain('#totarget-frame :not(.tf-move-btn) { pointer-events: auto');
+  });
+});

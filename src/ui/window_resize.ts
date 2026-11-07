@@ -1,0 +1,337 @@
+// Shared window-resize controller: gives every movable `.window.panel` a
+// south-east corner grip, hit-tested on the window's own client box (no handle
+// element, so it survives the innerHTML rebuilds every window does and never
+// scrolls away with the content; the grip visual is a background layer on
+// `.window.window-resizable`, see src/styles/layout.css). A window anchored to
+// the bottom of the screen also gets a north-west grip (TOP_LEFT_GRIP_WINDOW_IDS),
+// because its SE grip has no room below it to grow the window taller.
+//
+// Event-driven chrome like window_drag.ts (not a per-frame painter):
+// document-level pointer delegation, pointer capture on the window, and the
+// same visual-vs-author space correction (see src/ui/ui_scale.ts). Owned state
+// is one pending/active session; everything else is injected via deps (never Hud).
+import {
+  isInResizeCorner,
+  isInTopLeftResizeCorner,
+  RESIZE_CORNER_BAND,
+  RESIZE_CORNER_BAND_TOUCH,
+  RESIZE_ENGAGE_SLOP,
+  RESIZE_ENGAGE_SLOP_TOUCH,
+  type ResizeCorner,
+  resizedWindowRect,
+  WINDOW_MIN_HEIGHT,
+  WINDOW_MIN_WIDTH,
+  WINDOW_RESIZE_MARGIN,
+} from './window_resize_core';
+
+export interface WindowResizeDeps {
+  /** Live UI zoom factor (divide visual coords by it for author lengths). */
+  getScale(): number;
+  /**
+   * Convert the window's centering transform into pixel left/top before the
+   * first size write, so growing the width extends the right edge instead of
+   * both edges (Hud wires this to setWindowPixelPosition). A NW drag calls it
+   * again at the end, so the moved top-left is the spot a reflow remembers.
+   */
+  pinWindow(el: HTMLElement, rect: DOMRect): void;
+  /** Coarse-pointer probe; defaults to a matchMedia check. */
+  isCoarsePointer?(): boolean;
+}
+
+// Windows whose body is not reflowable content: fixed-size boards/popups and
+// the modal prompts. Everything else gets the grip.
+const NON_RESIZABLE_WINDOW_IDS = new Set([
+  'loot-window',
+  'confirm-dialog',
+  'mobile-extra-controls',
+  'lockpick-panel',
+  'emote-editor',
+]);
+
+// Windows resizable on the desktop layout only. The world map becomes a fixed
+// touch sheet under body.mobile-touch (src/styles/hud.mobile.css sizes it from
+// the viewport, and its canvas is CSS-scaled on purpose), so the grip stands
+// down there. The class toggles at runtime, so this is read per press.
+const DESKTOP_ONLY_RESIZABLE_WINDOW_IDS = new Set(['map-window']);
+
+// Windows docked to the bottom edge of the screen (the bag window sits on it):
+// they also get the NW grip so they can grow upward and leftward.
+const TOP_LEFT_GRIP_WINDOW_IDS = new Set(['bags']);
+
+export function isResizableWindow(el: HTMLElement): boolean {
+  return !NON_RESIZABLE_WINDOW_IDS.has(el.id);
+}
+
+function resizeStoodDown(el: HTMLElement): boolean {
+  return (
+    DESKTOP_ONLY_RESIZABLE_WINDOW_IDS.has(el.id) &&
+    (el.ownerDocument?.body?.classList.contains('mobile-touch') ?? false)
+  );
+}
+
+/**
+ * The resizable window whose SE corner band holds this pointer, or null. The
+ * band is measured against the CLIENT box, not the border box, so the classic
+ * scrollbar gutter stays grabbable as a scrollbar. A press on a control that
+ * must keep the corner click for itself never counts. Exported so the drag
+ * controller (window_drag.ts) leaves a corner press to the resize: the
+ * headerless map drags by its padding band, which the corner band overlaps.
+ */
+export function resizeCornerWindowAt(
+  ev: PointerEvent,
+  scale: number,
+  coarse: boolean,
+): HTMLElement | null {
+  const target = ev.target as HTMLElement | null;
+  if (!target?.closest) return null;
+  const el = target.closest<HTMLElement>('.window.panel');
+  if (!el || !el.classList.contains('window-resizable') || resizeStoodDown(el)) return null;
+  if (target.closest('button, input, textarea, select, a, [draggable="true"]')) return null;
+  const rect = el.getBoundingClientRect();
+  const corner = {
+    right: rect.left + (el.clientLeft + el.clientWidth) * scale,
+    bottom: rect.top + (el.clientTop + el.clientHeight) * scale,
+  };
+  const band = (coarse ? RESIZE_CORNER_BAND_TOUCH : RESIZE_CORNER_BAND) * scale;
+  return isInResizeCorner(corner, ev.clientX, ev.clientY, band) ? el : null;
+}
+
+/** The same coarse-pointer probe installWindowResize defaults to. */
+export function isCoarsePointerDefault(): boolean {
+  return window.matchMedia?.('(pointer: coarse)').matches ?? false;
+}
+
+export function hasTopLeftResizeGrip(el: HTMLElement): boolean {
+  return isResizableWindow(el) && TOP_LEFT_GRIP_WINDOW_IDS.has(el.id);
+}
+
+/**
+ * Stamp the grip class on a window (no-op for the excluded ids). Every
+ * resizable window is static in index.html, so installWindowResize stamps the
+ * whole document once; Hud's existing window MutationObserver calls this for
+ * any late-added window instead of this module running a second body-wide
+ * observer over all combat-time DOM churn.
+ */
+export function markResizableWindow(el: HTMLElement): void {
+  if (isResizableWindow(el)) el.classList.add('window-resizable');
+  if (hasTopLeftResizeGrip(el)) el.classList.add('window-resizable-nw');
+}
+
+/**
+ * The window and corner whose resize grip sits under a pointer event, or null.
+ * The bands are measured against the CLIENT box, not the border box, so the
+ * classic scrollbar gutter stays grabbable as a scrollbar. A press on a control
+ * that must keep the click for itself never counts. The NW grip is desktop-only:
+ * on mobile-touch the window is a full-screen sheet and its top-left is the title.
+ */
+export function resizeGripAt(
+  ev: PointerEvent,
+  scale: number,
+  coarse: boolean,
+): { el: HTMLElement; corner: ResizeCorner } | null {
+  const target = ev.target as HTMLElement | null;
+  if (!target?.closest) return null;
+  const el = target.closest<HTMLElement>('.window.panel');
+  if (!el || !el.classList.contains('window-resizable') || resizeStoodDown(el)) return null;
+  if (target.closest('button, input, textarea, select, a, [draggable="true"]')) return null;
+  const rect = el.getBoundingClientRect();
+  const band = (coarse ? RESIZE_CORNER_BAND_TOUCH : RESIZE_CORNER_BAND) * scale;
+  const corner = {
+    right: rect.left + (el.clientLeft + el.clientWidth) * scale,
+    bottom: rect.top + (el.clientTop + el.clientHeight) * scale,
+  };
+  if (isInResizeCorner(corner, ev.clientX, ev.clientY, band)) return { el, corner: 'se' };
+  if (!el.classList.contains('window-resizable-nw') || el.closest('.mobile-touch')) return null;
+  const topLeft = { left: rect.left + el.clientLeft * scale, top: rect.top + el.clientTop * scale };
+  return isInTopLeftResizeCorner(topLeft, ev.clientX, ev.clientY, band)
+    ? { el, corner: 'nw' }
+    : null;
+}
+
+/**
+ * True when a press lands on a window's NW resize grip. The NW grip sits on the
+ * title bar, which is also the drag handle, so window_drag.ts asks this before
+ * starting a move. Windows without the NW grip return before any layout read.
+ */
+export function isTopLeftResizeGrip(ev: PointerEvent, scale: number): boolean {
+  const el = (ev.target as HTMLElement | null)?.closest?.<HTMLElement>('.window.panel');
+  if (!el?.classList.contains('window-resizable-nw')) return false;
+  return resizeGripAt(ev, scale, isCoarsePointerDefault())?.corner === 'nw';
+}
+
+interface ResizeSession {
+  el: HTMLElement;
+  corner: ResizeCorner;
+  pointerId: number;
+  /** Visual-space pointer origin (pointerdown). */
+  downX: number;
+  downY: number;
+  /** False until the pointer travels the engage slop: a bare tap or click in
+   *  the corner band must not mutate the window (no pin, no flags, no capture). */
+  engaged: boolean;
+  /** Engage travel threshold, visual px (wider for touch: finger tap wobble). */
+  slop: number;
+  /** Author-space rect captured at engage time, after the pin clamped it. */
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  /** Visual-space pointer origin of the engaged drag. */
+  startX: number;
+  startY: number;
+}
+
+/** Install the shared resize behavior. Returns a teardown (for tests). */
+export function installWindowResize(deps: WindowResizeDeps): () => void {
+  const coarse = deps.isCoarsePointer ?? isCoarsePointerDefault;
+
+  document.querySelectorAll<HTMLElement>('.window.panel').forEach(markResizableWindow);
+
+  let session: ResizeSession | null = null;
+  let hotEl: HTMLElement | null = null;
+
+  const cornerHit = (ev: PointerEvent) => resizeGripAt(ev, deps.getScale(), coarse());
+
+  // Touch scrolling cannot be stopped from pointermove, and by the time the
+  // slop is exceeded the browser has already claimed the gesture, so the
+  // non-passive guard must attach while the touch is still pending in the
+  // corner band; it comes off on pointerup/cancel either way.
+  const touchGuard = (ev: TouchEvent) => ev.preventDefault();
+
+  const endSession = () => {
+    if (!session) return;
+    if (session.engaged) session.el.classList.remove('window-resizing');
+    // A NW drag moved the top-left: re-pin so the remembered spot (what a
+    // viewport reflow or a reopen restores) is the new one, not the old.
+    if (session.engaged && session.corner === 'nw') {
+      deps.pinWindow(session.el, session.el.getBoundingClientRect());
+    }
+    document.removeEventListener('touchmove', touchGuard);
+    session = null;
+  };
+
+  const onPointerDown = (ev: PointerEvent) => {
+    if (ev.button !== 0 || session) return;
+    const hit = cornerHit(ev);
+    if (!hit) return;
+    // Record a PENDING session only: a tap/click that never travels the slop
+    // must leave the window untouched (no pin, no windowMoved, no capture).
+    session = {
+      el: hit.el,
+      corner: hit.corner,
+      pointerId: ev.pointerId,
+      downX: ev.clientX,
+      downY: ev.clientY,
+      engaged: false,
+      slop: ev.pointerType === 'touch' ? RESIZE_ENGAGE_SLOP_TOUCH : RESIZE_ENGAGE_SLOP,
+      left: 0,
+      top: 0,
+      width: 0,
+      height: 0,
+      startX: 0,
+      startY: 0,
+    };
+    if (ev.pointerType === 'touch') {
+      document.addEventListener('touchmove', touchGuard, { passive: false });
+    }
+  };
+
+  const engage = (ev: PointerEvent) => {
+    if (!session) return;
+    const el = session.el;
+    // Pin first (converts the centering transform to pixel left/top and clamps
+    // into the viewport), THEN capture the baseline from the clamped rect.
+    deps.pinWindow(el, el.getBoundingClientRect());
+    const rect = el.getBoundingClientRect();
+    const z = deps.getScale();
+    session.left = rect.left / z;
+    session.top = rect.top / z;
+    session.width = rect.width / z;
+    session.height = rect.height / z;
+    session.startX = ev.clientX;
+    session.startY = ev.clientY;
+    session.engaged = true;
+    el.classList.add('window-resizing');
+    // From here the window owns an explicit width/height, so its content must
+    // follow that box instead of the viewport-relative cap it was authored with.
+    // Unlike window-resizing this is permanent for the session: it drives the
+    // .window-fill contract in src/styles/components.css, and it lives on the
+    // window element, so it survives the innerHTML rebuilds the painters do.
+    el.classList.add('window-sized');
+    // Opts the window into the viewport-resize re-clamp pass hud.ts runs.
+    el.dataset.windowMoved = '1';
+    try {
+      el.setPointerCapture?.(ev.pointerId);
+    } catch {
+      /* synthetic/legacy pointer without active capture */
+    }
+  };
+
+  const onPointerMove = (ev: PointerEvent) => {
+    if (session) {
+      if (session.pointerId !== ev.pointerId) return;
+      if (!session.engaged) {
+        // A swallowed pointerup must not strand the pending session: no buttons
+        // down means the press already ended, so drop it instead of engaging.
+        if (ev.buttons === 0) {
+          endSession();
+          return;
+        }
+        const travelled =
+          Math.abs(ev.clientX - session.downX) >= session.slop ||
+          Math.abs(ev.clientY - session.downY) >= session.slop;
+        if (!travelled) return;
+        engage(ev);
+      }
+      ev.preventDefault();
+      const z = deps.getScale();
+      const { left, top, width, height } = resizedWindowRect(
+        session,
+        (ev.clientX - session.startX) / z,
+        (ev.clientY - session.startY) / z,
+        session.corner,
+        {
+          viewportWidth: window.innerWidth / z,
+          viewportHeight: window.innerHeight / z,
+          minWidth: WINDOW_MIN_WIDTH,
+          minHeight: WINDOW_MIN_HEIGHT,
+          margin: WINDOW_RESIZE_MARGIN,
+        },
+      );
+      if (session.corner === 'nw') {
+        session.el.style.left = `${left}px`;
+        session.el.style.top = `${top}px`;
+      }
+      session.el.style.width = `${width}px`;
+      session.el.style.height = `${height}px`;
+      return;
+    }
+    // Hover affordance: swap the resize cursor class as the pointer crosses the
+    // corner band (event-driven, only while a hovering pointer is over a
+    // window; touch has no hover, so skip the rect work entirely).
+    if (ev.pointerType === 'touch') return;
+    const el = cornerHit(ev)?.el ?? null;
+    if (hotEl && hotEl !== el) hotEl.classList.remove('window-resize-hot');
+    if (el && el !== hotEl) el.classList.add('window-resize-hot');
+    hotEl = el;
+  };
+
+  const onPointerEnd = (ev: PointerEvent) => {
+    if (session && session.pointerId === ev.pointerId) endSession();
+  };
+
+  document.addEventListener('pointerdown', onPointerDown);
+  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointerup', onPointerEnd);
+  document.addEventListener('pointercancel', onPointerEnd);
+
+  return () => {
+    endSession();
+    hotEl?.classList.remove('window-resize-hot');
+    hotEl = null;
+    document.removeEventListener('pointerdown', onPointerDown);
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointerup', onPointerEnd);
+    document.removeEventListener('pointercancel', onPointerEnd);
+  };
+}

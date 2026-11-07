@@ -1,0 +1,88 @@
+{
+  "name": "rpg-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Independent multiplayer RPG based on MIT WoC authoritative server and client",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/serve.mjs",
+    "test": "node scripts/test.mjs",
+    "typecheck": "tsc --noEmit",
+    "assets:check": "node scripts/check-assets.mjs",
+    "build:server": "node scripts/check-assets.mjs && node scripts/build_server.mjs",
+    "server": "node scripts/server.mjs",
+    "test:unit": "vitest run --config vitest.product.config.ts",
+    "test:multiplayer": "node scripts/product-multiplayer-test.mjs",
+    "build:env": "esbuild headless/env_server.ts --bundle --platform=node --format=cjs --outfile=dist-env/env_server.cjs",
+    "env": "pnpm build:env && node dist-env/env_server.cjs",
+    "build:bot": "node scripts/build_bot.mjs",
+    "bot": "pnpm build:bot && node dist-bot/bot.cjs",
+    "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
+    "build:editor": "node scripts/build-editor.mjs",
+    "build:admin": "vite build --config vite.admin.config.ts",
+    "test:postgres": "node scripts/test-postgres.mjs",
+    "db:up": "node scripts/local-env.mjs && docker compose -p rpg-core-local -f compose.local.yml --env-file .cache/local.env up -d --wait postgres",
+    "db:down": "docker compose -p rpg-core-local -f compose.local.yml --env-file .cache/local.env down",
+    "dev:client": "node scripts/build.mjs && node scripts/serve.mjs",
+    "build:all": "pnpm build && pnpm build:server && pnpm build:editor && pnpm build:admin && pnpm build:env && pnpm build:bot",
+    "test:core": "vitest run --config vitest.product.config.ts tests/product_world.test.ts tests/server/ws_auth.test.ts tests/server/ws_auth_login_covenant.test.ts tests/persistence_round_trip.test.ts tests/character_lease_ws.test.ts tests/character_lease_game.test.ts tests/linkdead.test.ts tests/ws_backpressure.test.ts tests/snapshots.test.ts tests/movement_wire_v2.test.ts tests/world_api_parity.test.ts tests/server/periodic_save_flush.test.ts tests/server/db_connection_budget.test.ts tests/server/db_pool_timeout.test.ts",
+    "typecheck:bot": "tsc --noEmit -p tsconfig.bot.json"
+  },
+  "dependencies": {
+    "three": "0.185.1",
+    "n8ao": "2.0.0",
+    "postprocessing": "6.39.4",
+    "meshoptimizer": "1.0.1",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/browser": "8.0.4",
+    "@capacitor/core": "8.4.3",
+    "@solana/wallet-standard-chains": "1.1.2",
+    "@solana/wallet-standard-features": "1.4.0",
+    "@wallet-standard/app": "1.1.1",
+    "@wallet-standard/base": "1.1.1",
+    "@wallet-standard/features": "1.1.1",
+    "bs58": "6.0.0",
+    "tweetnacl": "1.0.3",
+    "pg": "8.22.0",
+    "ws": "8.21.1",
+    "prom-client": "15.1.3",
+    "obscenity": "0.4.6",
+    "@noble/curves": "1.9.7",
+    "@aws-sdk/client-sesv2": "3.1087.0",
+    "electron-log": "5.4.4",
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "@types/three": "0.185.4",
+    "@types/node": "26.1.1",
+    "vitest": "4.1.12",
+    "@types/pg": "8.20.0",
+    "@types/ws": "8.18.1",
+    "vite": "8.1.6",
+    "svelte": "5.56.5",
+    "@sveltejs/vite-plugin-svelte": "7.2.0",
+    "svelte-check": "4.7.2",
+    "@biomejs/biome": "2.5.4",
+    "happy-dom": "21.0.4",
+    "jsdom": "29.1.1",
+    "tsx": "4.23.1",
+    "@typescript/native": "npm:typescript@7.0.2"
+  },
+  "packageManager": "pnpm@10.34.5",
+  "pnpm": {
+    "patchedDependencies": {
+      "three@0.185.1": "patches/three@0.185.1.patch"
+    },
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "engines": {
+    "node": ">=20.20.2"
+  }
+}

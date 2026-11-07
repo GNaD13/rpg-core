@@ -1,0 +1,3168 @@
+// Zone 2 — Mirefen Marsh (levels 6-13). Brother Aldric follows the
+// Gravecaller trail north of the causeway: drowned dead rise from the fen,
+// trolls dig into barrow-mounds, and Vael the Fogbinder waits in the
+// Sunken Bastion.
+
+import { BARROW_SMASH_GAP } from '../boss_ring_gap';
+import { FENBRIDGE_LAYOUT, FENBRIDGE_NPC_PLACEMENTS_BY_ID } from '../fenbridge_layout';
+import { WORK_ORDER_CADENCE_TICKS } from '../professions/cadence';
+import type {
+  CampDef,
+  GroundObjectDef,
+  ItemDef,
+  MobTemplate,
+  NpcDef,
+  PlayerClass,
+  QuestDef,
+  ZoneDef,
+  ZonePropsDef,
+} from '../types';
+import { FERAL } from './items';
+import {
+  MUSTER_CIRCUIT,
+  MUSTER_COMMAND_KEEP_OUT,
+  type MusterCampId,
+  musterCamp,
+} from './mirefen_muster';
+import { MUSTER_QUEST_ORDER, MUSTER_QUESTS } from './mirefen_muster_quests';
+
+export const DEEPFEN_SHALLOWS_LAKE = { x: -110, z: 310, radius: 35 };
+
+// What Balgath yells as he sets off for each picket of the muster (his warpath below).
+// English-only boss yells, the variable-routed-chat precedent (src/sim/mob/yells.ts).
+const BALGATH_PICKET_CALLS: Record<MusterCampId, { label: string; yell: string }> = {
+  rim: {
+    label: 'the rim picket',
+    yell: 'Pikes on MY rim? I will plant you in it like fence posts.',
+  },
+  west: {
+    label: 'the west picket',
+    yell: 'Run to the thicket, little soldiers. The spiders will not save you.',
+  },
+  south: {
+    label: 'the south picket',
+    yell: 'Tents. Banners. Fenwick sends me kindling and calls it an army.',
+  },
+  crater: {
+    label: 'the crater picket',
+    yell: 'You dug in beside my bed? Then you can sleep in it. FOREVER.',
+  },
+  command: { label: 'the command camp', yell: '' },
+};
+
+export const ZONE2_ZONE: ZoneDef = {
+  id: 'mirefen_marsh',
+  name: 'Mirefen Marsh',
+  zMin: 180,
+  zMax: 540,
+  levelRange: [6, 13],
+  biome: 'marsh',
+  hub: {
+    x: FENBRIDGE_LAYOUT.hub.center.x,
+    z: FENBRIDGE_LAYOUT.hub.center.z,
+    radius: FENBRIDGE_LAYOUT.hub.radius,
+    name: 'Fenbridge',
+  },
+  graveyard: { ...FENBRIDGE_LAYOUT.services.graveyard.position },
+  lakes: [DEEPFEN_SHALLOWS_LAKE, { x: 60, z: 380, radius: 25 }, { x: -40, z: 450, radius: 20 }],
+  pois: [
+    { x: 0, z: 300, label: 'Fenbridge', id: 'fenbridge' },
+    { x: -40, z: 230, label: 'Prowler Reeds', id: 'prowler_reeds' },
+    { x: -105, z: 300, label: 'Deepfen Shallows', id: 'deepfen_shallows' },
+    { x: 80, z: 315, label: 'Widow Thicket', id: 'widow_thicket' },
+    { x: 100, z: 435, label: 'Drowned Chapel', id: 'drowned_chapel' },
+    { x: -95, z: 440, label: 'Troll Mounds', id: 'troll_mounds' },
+    { x: 0, z: 485, label: 'Gravecaller Encampment', id: 'gravecaller_encampment' },
+    { x: 45, z: 515, label: 'The Sunken Bastion', id: 'the_sunken_bastion' },
+    // APPENDED, never inserted: `entities.zones.<id>.pois.<n>.label` is keyed by index in
+    // the locale overlays, so adding a POI anywhere but the end shifts every later label
+    // onto the wrong translation and drops the last one entirely.
+    { x: 0, z: 390, label: 'Barrowmound Reach', id: 'barrowmound_reach' },
+    // Where Brother Aldric's star came down (MIREFEN_IMPACT_CRATER in world.ts) and where
+    // the world boss sleeps and wakes (world_boss.ts): the map needs a name for the place
+    // the whole zone is told to come back to at dawn.
+    { x: 149.5, z: 295, label: 'Starfall Crater', id: 'starfall_crater' },
+  ],
+  welcome: 'Report to Warden Fenwick at the Fenbridge gate.',
+  welcomeDone:
+    'Warden Fenwick has no more orders for you - the settlement deep within the marshy swamplands stands safer for it.',
+};
+
+// Causeway north from Eastbrook to Fenbridge, then spokes to each hub.
+// The Drowned Chapel spoke rounds the lake at (60,380) along its western
+// shore via Widow Thicket — the whole polyline stays clear of the lake carve
+// so the road never dips under the waterline (tests/progression.test.ts
+// samples every road against the heightfield to lock this in).
+export const ZONE2_ROADS: { x: number; z: number }[][] = [
+  ...FENBRIDGE_LAYOUT.roads.map((road) => road.points.map((point) => ({ ...point }))),
+];
+
+// ---------------------------------------------------------------------------
+// Mobs (overworld only — the Sunken Bastion's mobs live in content/dungeons)
+// ---------------------------------------------------------------------------
+
+export const ZONE2_MOBS: Record<string, MobTemplate> = {
+  mire_prowler: {
+    id: 'mire_prowler',
+    name: 'Mire Prowler',
+    minLevel: 7,
+    maxLevel: 8,
+    family: 'beast',
+    hpBase: 46,
+    hpPerLevel: 19,
+    dmgBase: 7,
+    dmgPerLevel: 2.1,
+    attackSpeed: 2.0,
+    armorPerLevel: 12,
+    moveSpeed: 8.5,
+    aggroRadius: 11,
+    loot: [
+      { copper: 30, chance: 1 },
+      { itemId: 'mire_prowler_pelt', chance: 0.6, questId: 'q_prowler_pelts' },
+      { itemId: 'soggy_moccasin', chance: 0.3 },
+      { itemId: 'lesser_healing_potion', chance: 0.08 },
+    ],
+    scale: 0.95,
+    color: 0x4d5656,
+    // Miring Pounce: the prowler drags its prey into the sucking mire, slowing
+    // the victim's swings (+30% swing interval) for 8s.
+    slowStrike: { chance: 0.3, mult: 1.3, duration: 8, name: 'Miring Pounce', school: 'physical' },
+    componentTags: ['hide', 'claw', 'meat'],
+  },
+  deepfen_murloc: {
+    id: 'deepfen_murloc',
+    name: 'Deepfen Snapper',
+    minLevel: 8,
+    maxLevel: 9,
+    family: 'mudfin',
+    hpBase: 48,
+    hpPerLevel: 19,
+    dmgBase: 7,
+    dmgPerLevel: 2.2,
+    attackSpeed: 1.9,
+    armorPerLevel: 12,
+    moveSpeed: 8,
+    aggroRadius: 14, // deepfen packs swarm from far out
+    loot: [
+      { copper: 35, chance: 1 },
+      { itemId: 'waterlogged_idol', chance: 0.5, questId: 'q_idols' },
+      { itemId: 'mudfin_scale', chance: 0.4 },
+    ],
+    scale: 0.85,
+    color: 0x45b39d,
+    // Acid Spit: a snapper's bite corrodes armor, stacking so a swarm shreds you fast.
+    corrode: {
+      chance: 0.35,
+      armor: 20,
+      maxStacks: 5,
+      duration: 15,
+      name: 'Acid Spit',
+      school: 'nature',
+    },
+    // Tide Cadence: a snapper drums up the school, quickening the whole pack's
+    // bites — the swarm's signature pressure when you pull more than one.
+    warcry: {
+      radius: 12,
+      every: 10,
+      hasteMult: 1.25,
+      duration: 6,
+      name: 'Tide Cadence',
+      school: 'frost',
+    },
+    componentTags: ['gills', 'hide'],
+  },
+  mirejaw_the_ravenous: {
+    id: 'mirejaw_the_ravenous',
+    name: 'Mirejaw the Ravenous',
+    minLevel: 10,
+    maxLevel: 10,
+    family: 'mudfin',
+    rare: true,
+    elite: true,
+    canSwim: true,
+    ccImmune: true,
+    respawnMult: 648,
+    hpBase: 320,
+    hpPerLevel: 58,
+    dmgBase: 15,
+    dmgPerLevel: 3.7,
+    attackSpeed: 1.8,
+    armorPerLevel: 26,
+    moveSpeed: 8.2,
+    aggroRadius: 14,
+    aoePulse: { min: 18, max: 26, radius: 10, every: 9, name: 'Ravenous Frenzy', school: 'nature' },
+    sapVigor: { chance: 0.3, amount: 25, name: 'Sapping Bite' },
+    summonAdds: { mobId: 'mirejaw_frenzy', count: 2, atHpPct: [0.55] },
+    loot: [
+      { copper: 260, chance: 1 },
+      { itemId: 'mudfin_scale', chance: 1 },
+      { itemId: 'mirejaw_biteblade', chance: 0.25 },
+      { itemId: 'mirejaw_scale_vest', chance: 0.25 },
+      { itemId: 'fen_reaver_glaive', chance: 0.25, rollGroup: 'mirejaw_chase' },
+      { itemId: 'mirejaw_oracle_staff', chance: 0.25, rollGroup: 'mirejaw_chase' },
+      { itemId: 'mirebloom_treads', chance: 0.25 },
+    ],
+    scale: 1.05,
+    color: 0x1abc9c,
+  },
+  mirejaw_frenzy: {
+    id: 'mirejaw_frenzy',
+    name: 'Mirejaw Frenzy',
+    minLevel: 9,
+    maxLevel: 10,
+    family: 'mudfin',
+    hpBase: 48,
+    hpPerLevel: 18,
+    dmgBase: 8,
+    dmgPerLevel: 2.2,
+    attackSpeed: 1.7,
+    armorPerLevel: 12,
+    moveSpeed: 8.5,
+    aggroRadius: 14,
+    loot: [],
+    scale: 0.75,
+    color: 0x1abc9c,
+  },
+  sloomtooth_the_drowned: {
+    id: 'sloomtooth_the_drowned',
+    name: 'Sloomtooth the Drowned',
+    minLevel: 11,
+    maxLevel: 11,
+    family: 'mudfin',
+    rare: true,
+    elite: true,
+    canSwim: true,
+    ccImmune: true,
+    respawnMult: 648,
+    hpBase: 340,
+    hpPerLevel: 60,
+    dmgBase: 16,
+    dmgPerLevel: 3.8,
+    attackSpeed: 1.9,
+    armorPerLevel: 28,
+    moveSpeed: 8.4,
+    aggroRadius: 14,
+    // Tidal Sweep: a wide gaff-swing that splashes onto allies near the target.
+    cleave: { radius: 8, mult: 0.5, name: 'Tidal Sweep' },
+    // Drowning Resurgence: the drowned do not stay dead — one desperate surge of brine
+    // heals the tyrant the first time it is brought low.
+    desperateHeal: { belowHpPct: 0.3, healPct: 0.25 },
+    loot: [
+      { copper: 280, chance: 1 },
+      { itemId: 'mudfin_scale', chance: 1 },
+      { itemId: 'tidereaver_gaff', chance: 0.25, rollGroup: 'sloomtooth_chase' },
+      { itemId: 'sloomtooth_tidefang', chance: 0.25, rollGroup: 'sloomtooth_chase' },
+      { itemId: 'drowned_tide_scepter', chance: 0.25, rollGroup: 'sloomtooth_chase' },
+    ],
+    scale: 1.1,
+    color: 0x2e86c1,
+  },
+  mire_widow: {
+    id: 'mire_widow',
+    name: 'Mirefen Widow',
+    minLevel: 8,
+    maxLevel: 10,
+    family: 'spider',
+    hpBase: 48,
+    hpPerLevel: 19,
+    dmgBase: 8,
+    dmgPerLevel: 2.2,
+    attackSpeed: 1.8,
+    armorPerLevel: 10,
+    moveSpeed: 8,
+    aggroRadius: 10,
+    // Find Weakness: the widow's bite leaves the flesh raw, so critical blows
+    // against the victim bite 50% deeper for a few seconds.
+    critVuln: { chance: 0.3, critDamage: 0.5, duration: 8, name: 'Exposed Wound' },
+    loot: [
+      { copper: 38, chance: 1 },
+      { itemId: 'widow_venom_sac', chance: 0.65, questId: 'q_widows' },
+      { itemId: 'spider_leg', chance: 0.4 },
+      { itemId: 'fenbark_leggings', chance: 0.02 },
+    ],
+    scale: 1.0,
+    color: 0x283747,
+    // The one open-world mid-band spider: its web is spider silk, the same
+    // family the Webwood and Canopy spiders yield. Phase 11m added the tag by
+    // name (qr-11m-SPREAD) as the directed band-1 silk source.
+    componentTags: ['venomSac', 'silk', 'hide'],
+  },
+  spider_egg: {
+    id: 'spider_egg',
+    name: 'Broodmother Egg',
+    minLevel: 10,
+    maxLevel: 10,
+    family: 'spider',
+    // Only players on The Broodmother quest can damage the clutch (see dealDamage).
+    requiresQuestId: 'q_broodmother',
+    hpBase: 100,
+    hpPerLevel: 0,
+    dmgBase: 0,
+    dmgPerLevel: 0,
+    attackSpeed: 2,
+    armorPerLevel: 0,
+    moveSpeed: 0,
+    aggroRadius: 0,
+    xpMult: 0,
+    loot: [],
+    scale: 0.9,
+    color: 0xb7a7c9,
+    // A silk-wrapped egg sac of the spider family. Phase 11m added the tag. The
+    // clutch is quest-gated to damage (requiresQuestId above), so it is a
+    // hollow silk floor member: the ledger records its density beside the count.
+    componentTags: ['silk'],
+  },
+  widow_hatchling: {
+    id: 'widow_hatchling',
+    name: 'Widow Hatchling',
+    minLevel: 9,
+    maxLevel: 9,
+    family: 'spider',
+    hpBase: 14,
+    hpPerLevel: 4,
+    dmgBase: 5,
+    dmgPerLevel: 1.6,
+    attackSpeed: 1.6,
+    armorPerLevel: 8,
+    moveSpeed: 8.5,
+    aggroRadius: 0,
+    xpMult: 0.5,
+    loot: [{ copper: 8, chance: 0.5 }],
+    scale: 0.55,
+    color: 0x3a2740,
+  },
+  // Balgath, the Buried Foreman: the Mirefen world boss.
+  //
+  // Mirefen is the churn choke point, so this boss exists to give the zone a reason to
+  // gather. He is level 20 in a level 6 to 13 zone deliberately: that is what pulls
+  // geared players back to Fenbridge, and the mechanics are shaped so the locals who
+  // live here are participants rather than corpses.
+  //
+  // He is in no CAMPS list: the world-boss scheduler owns his spawns (world_boss.ts). He
+  // rises on the Starfall Crater's rim at the zone's east edge, and unlike Thunzharr he
+  // keeps hours (`slumber` below): awake from sunrise to sunset, asleep beside the fallen
+  // star through the night, and a kill puts him down until the next dawn. Structure
+  // otherwise follows the Thunzharr template so the two read the same to a raid.
+  balgath_cyclops: {
+    id: 'balgath_cyclops',
+    name: 'Balgath, the One-Eyed Foreman',
+    minLevel: 20,
+    maxLevel: 20,
+    family: 'elemental',
+    worldBoss: true,
+    boss: true,
+    elite: true,
+    canSwim: false,
+    // A fen is all water and reed banks; pathing a 9-unit giant around them wedges him
+    // on the first collider, so he walks the straight line as Thunzharr does.
+    phasesThroughObstacles: true,
+    // ...except into the muster's command camp, the one place a player goes to arm up
+    // rather than to fight him: no leg, chase, leash return or walk to bed ever crosses
+    // its circle (content/mirefen_muster.ts MUSTER_COMMAND_KEEP_OUT, mob/keep_out.ts).
+    keepOut: [MUSTER_COMMAND_KEEP_OUT],
+    // He stands guard over the fallen star while idle instead of wandering: a 13-unit body
+    // ambling round his spawn walks straight out of the 20-yard crater he sleeps in (the
+    // owner saw him "beside" it). Pulled, he fights and marches exactly as before.
+    idleStationary: true,
+    // He WADES. A phasing mover otherwise rides the water surface, and the first cut of
+    // this boss crossed the Mirefen lakes with his boots on the waterline like a cork:
+    // thirteen yards of granite floating in four yards of fen. With this, his feet stay
+    // on the bed and the surface climbs his shins instead. Nine is about two thirds of
+    // his 13.4-unit height, so a lake deeper than that (there is none in the marsh)
+    // would still float him rather than drown him. The circuit below still avoids the
+    // lakes for a different reason: HE can wade, the raid chasing him cannot.
+    wadeDepth: 9,
+    // Felled, he lies on his back across the fen for his whole corpse window (looted or
+    // not), then sinks into it over the last five seconds rather than blinking out of
+    // existence (mob/boss_corpse_sink.ts). Twelve yards clears the highest point of his
+    // lying body (the raised knees and fists, about half his 13.4-yard standing height).
+    corpseSink: { seconds: 5, depth: 12 },
+    // A daytime boss (mob/slumber.ts). At dusk, once whatever pull is running has ended,
+    // he walks back into the crater he spawns in and lies down; asleep he is neutral,
+    // unattackable and a landmark; at dawn he wakes with a yell the zone hears and the
+    // realm gets the "wakes over Mirefen" call. Killed, he rises again at the next dawn
+    // (the scheduler in sim.ts reads this same field), so the fight is a once-a-day event
+    // with a window everyone can plan around rather than an hourly respawn.
+    slumber: {
+      auraName: 'Barrow Slumber',
+      sleepYell: 'Dark. The star sleeps. So does the Foreman.',
+      wakeYell: 'DAWN. The star woke me once. The sun wakes me every day.',
+      yellRange: 160,
+      // Inside this of the spawn point he lies down. Tight, because his bed is 15 yards into
+      // a 20-yard bowl: any looser and a giant coming home from the rim lies down on it
+      // rather than in the crater. The crater floor there is flat and he phases through
+      // obstacles, so he never paces on the spot hunting for the exact coordinate.
+      bedRadius: 3,
+      // Balgath_Wake runs 3.96 s (scripts/assets/balgath_cyclops/clips.py); the hold covers it.
+      riseSeconds: 4,
+    },
+    quietMechanics: true,
+    // THE mechanic of this fight. Without it his AoEs fire instantly with no warning,
+    // which makes "walk out of the circle" impossible and reduces him to a damage check
+    // you either out-gear or die to. With it, both slams draw a ground ring at their true
+    // blast radius, wind up, and detonate from the ring's centre even if he has walked
+    // on: what you were shown is what you have to leave. 4.5s also spaces the mechanics
+    // so two never land together.
+    telegraphedMechanics: 4.5,
+    // Every mechanic range below is what a LEVEL 6 takes; the hit grows with the level of
+    // the player it lands on, straight-line to three times that at level 20
+    // (mob/mechanic_level_scale.ts). The Mirefen mixes level 6s with level 20s, and one flat
+    // range either one-shots the locals or lets a geared level 20 ignore the telegraphs. At
+    // x3 each mechanic costs a geared level 20 roughly a tenth to a quarter of their pool
+    // (the heavy reads, Barrow Cleave and Barrowfall, the most). His melee swing and the
+    // Barrow Burden soak (already a share of max health) are not scaled, and neither is
+    // anything he does to the muster's soldiers or the wildlife.
+    mechanicLevelScale: { fromLevel: 6, toLevel: 20, toMult: 3 },
+    // The circuit, and the reason this fight is an event rather than a health bar. He
+    // holds ground and trades for a while, then sets off for the next landmark and RUNS
+    // there while the raid chases, then brings both fists down on whatever he arrived at.
+    // Mechanics doc: mob/warpath.ts.
+    warpath: {
+      // Long enough for two Barrow Smashes at their 14s cadence, so melee gets a real
+      // window rather than a glance at him before he leaves again.
+      focusSeconds: 30,
+      // 5.0 * 1.25 = 6.25 u/s. Deliberately BETWEEN a player's 7 run and their walk: a
+      // raid that runs stays with him and a raid that dawdles does not, which is what
+      // makes the regen below bite. It is also above the renderer's GAIT_RUN_ENTER of
+      // 5.2, so travelling is the one thing that puts him in his RUN clip; his 5.0 combat
+      // speed stays under it and keeps the walk. One boss, two gaits, neither of them
+      // near the clip clamps that made him skate.
+      travelSpeedMult: 1.25,
+      // The legs are short now (the pickets ring the crater, 28 to 53 yards apart, and the
+      // opening march from his bed to the rim picket is 29), so a few seconds each at
+      // travel speed. 25 is two and a half times the longest with room for a slow, and
+      // still gives up on a picket he cannot reach, so a wedged body can never leave him
+      // travelling (and healing) forever. A leg that is honestly longer (a skipped picket, a
+      // fight dragged far off) gets twice its walk instead (mob/warpath.ts
+      // warpathTravelPatience), so the cap never slams him down short of a reachable picket.
+      travelTimeoutSeconds: 25,
+      // He plants ON the picket, not beside it: 3 yards from its centre puts every soldier
+      // of the inner ring (MUSTER_INNER_RADIUS 5.5) under the 16-yard Barrowfall with room
+      // to spare, while the two sentries posted 19+ yards out live to see the next lap.
+      arriveRadius: 3,
+      // 1.4s of telegraph ring plus the follow-through, timed so his slam clip lands its
+      // blow on the detonation rather than before it.
+      wreckSeconds: 3.4,
+      // Walked IN ORDER, wrapping, starting at index 0: the four pickets of the Mirefen
+      // muster (content/mirefen_muster.ts, MUSTER_CIRCUIT), which Warden Fenwick sent out
+      // to hold the crater. He wakes in his bed on the crater's scorched floor, marches on
+      // the rim picket first, then the west picket, the south picket, the crater picket,
+      // and round again. Every run has a reason now: he goes where the soldiers are and
+      // flattens them, and the raid chasing him arrives to a picket full of bodies. A picket
+      // whose squad his fists already flattened is RAZED and skipped (mob/warpath.ts
+      // warpathStopRazed); with every picket razed he holds the fight where it stands.
+      //
+      // ORDER AND PLACEMENT ARE CONSTRAINED BY WATER. He walks the straight line between
+      // stops, and although he WADES (wadeDepth above) the raid chasing him does not: a leg
+      // that clips a lake, or even the shallows, turns the chase into a swim. The first
+      // circuit crossed the fen's lakes. Every leg below, and the opening leg from his bed,
+      // is dry END TO END with a corridor either side, and tests/warpath.test.ts re-measures
+      // that against the real heightfield and every water body: no lake footprint, no open
+      // sea, and ground well above the waterline all the way. The pickets also keep their
+      // distance from the Widow Thicket spider camps (content/mirefen_muster.ts), so the
+      // chase never drags a level eight through seven spiders.
+      destinations: MUSTER_CIRCUIT.map((id) => {
+        const camp = musterCamp(id);
+        return { x: camp.center.x, z: camp.center.z, ...BALGATH_PICKET_CALLS[id] };
+      }),
+      // He is thirteen units tall and the whole zone should hear him coming.
+      yellRange: 160,
+      // 1.5% of his pool a second after three seconds unpunished. Against his world-boss
+      // scaling that is proportional, so it costs the same fraction of the fight whether
+      // five players or forty are on him: a raid that stops attacking to run loses ground
+      // at exactly the rate it stopped attacking.
+      regen: { unharriedSeconds: 3, pctPerSecond: 0.015, name: 'Barrowmend' },
+      // He can never be kited out of his fen, and never stays "engaged" with nobody on him.
+      // Past 100 yards from his bed in ANY phase, with no living player inside 60 yards, or
+      // with nobody (players or pets) hurting him for 30 seconds, he drops the pull and
+      // walks home to his bed like any evade. The whole circuit sits inside the tether (the
+      // outermost picket, south, is 88 yards out: tests/balgath_give_up.test.ts measures
+      // it), and a focus fight dragged near the tether marches on rather than evading. Any
+      // hit resets the 30 seconds, so a raid chasing and hitting him never trips it, and it
+      // runs on the same clock as his Barrowmend regen above without touching it.
+      giveUp: { tetherRadius: 100, playerRange: 60, aloneGraceSeconds: 5, unharriedSeconds: 30 },
+      // The travelling backhand, on one random player inside his reach. Between the
+      // aoePulse (36 to 50) and the stomp (18 to 28) in weight: escorting him is meant to
+      // cost, not to be a death sentence for whoever draws the short straw. Named for the
+      // clip it plays and NOT "Backhand", which is already the label on his knockback
+      // proc: two different mechanics under one name in the combat log is a fight nobody
+      // can read.
+      swipe: {
+        every: 2.6,
+        radius: 12,
+        min: 28,
+        max: 40,
+        name: 'Barrowsweep',
+        school: 'physical',
+      },
+      // The arrival slam: wider and heavier than the Barrow Smash, because it is the
+      // payoff for the chase and the one mechanic he only ever does at a landmark.
+      wreck: { radius: 16, min: 62, max: 86, name: 'Barrowfall', school: 'physical' },
+      wreckYell: 'DOWN! ALL OF IT DOWN!',
+    },
+    // The two AIMED attacks, which exist because everything else he throws is a circle
+    // centred on his own feet and dodged by walking out of it. These are dodged two other
+    // ways, so the fight asks for three different reactions instead of one repeated.
+    slams: {
+      // Whack-a-mole. He picks whoever has his attention, raises one fist, and drops it
+      // where they were standing 1.3s ago. The radius is small ON PURPOSE: this is beaten
+      // by taking three steps, so it punishes standing still rather than standing close,
+      // and it keeps chasing whoever it picked instead of parking the raid at max range.
+      hammer: {
+        every: 17,
+        windup: 1.3,
+        radius: 6,
+        min: 44,
+        max: 62,
+        name: 'Foreman\u2019s Hammer',
+        school: 'physical',
+      },
+      // The cleave, and the one mechanic in this fight that is beaten by JUMPING. His arm
+      // comes across the ground at shin height through a 120-degree arc, so backing out of
+      // 20 yards of reach inside the wind is not on the table: you leave the ground or you
+      // wear it. Clearing it hands you a ride instead of a hit, which is the reward for
+      // reading a telegraph correctly rather than merely surviving it.
+      //
+      // Deliberately the rarest thing he does. A jump check every 20 seconds is a
+      // heartbeat the raid learns to feel; one every five is a rhythm game.
+      //
+      // 2.0 s of wind (it shipped at 1.5): owner playtest found the frontal arriving before
+      // a raid in front of him could read it. The clip's arm crosses at 1.5 s of its own
+      // timeline, so the ClipMap slows it to 0.75 and the arm still lands on the hit.
+      cleave: {
+        every: 26,
+        windup: 2,
+        range: 20,
+        halfArcDeg: 60,
+        sweepSpeed: 26,
+        min: 78,
+        max: 104,
+        name: 'Barrow Cleave',
+        school: 'physical',
+      },
+    },
+    // The ranged-punish kit (mob/boss_ranged_mechanics.ts). Everything above is centred on
+    // his feet or aimed inside his reach, so a caster parked thirty-five yards out used to
+    // watch the fight rather than play it. These three reach them, each dodged a different
+    // way (move, break line, stack), and all three ride the same spacing lock as the slams:
+    // one telegraph on the ground at a time, most-overdue first.
+    rangedMechanics: {
+      // He tears a boulder out of the fen for each of the two FARTHEST players standing
+      // 18 yards or more out (just past the cleave's 20-yard reach at his size, so a melee
+      // player hugging his shins is never the pick). The circle is five yards: three steps
+      // out of it, and it lands after 2.2 s, which is the punishment: a caster who stays
+      // to finish a cast wears it. Damage sits beside Foreman's Hammer (44 to 62), since
+      // it is the same "move or be hit" read at a longer reach.
+      boulder: {
+        every: 20,
+        windup: 2.2,
+        minRange: 18,
+        maxRange: 60,
+        count: 2,
+        radius: 5,
+        min: 46,
+        max: 64,
+        name: 'Boulder Toss',
+        school: 'physical',
+      },
+      // His eye burns a line along the ground from his feet through one far player, and a
+      // beam rakes it after 2.6 s. Five yards wide: one sidestep clears it. Or hide behind
+      // a muster barricade: any solid collider tall enough to cross the sight line stops
+      // it (a soldier does NOT, and the beam leaves the muster unharmed: it burns players
+      // only, so it never razes a picket out of his circuit). Between the hammer
+      // and his Wake of the Fallen Star fissures (62 to 82) in weight, because it reaches
+      // everyone in a line.
+      glare: {
+        every: 30,
+        windup: 2.6,
+        minRange: 18,
+        maxRange: 55,
+        halfWidth: 2.5,
+        overshoot: 12,
+        minLength: 30,
+        maxLength: 70,
+        min: 58,
+        max: 78,
+        name: 'Foreman\u2019s Glare',
+        school: 'arcane',
+      },
+      // The shared soak, priced the way Varkhul's Shared Pyre is (a fraction of each
+      // soaker's max health, split by the count; shared_soak.ts), because this zone mixes
+      // level 8s with level 20s and a flat number would one-shot the locals it is meant to
+      // gather. 110% alone is death without a defensive; four share it at 27.5% each and
+      // six at 18%. The more players his health scaled up for, the more there are to share
+      // it, which is how it keeps pace with his player-count scaling without a knob.
+      burden: {
+        every: 45,
+        windup: 6,
+        range: 45,
+        radius: 6,
+        totalFraction: 1.1,
+        recommended: 4,
+        name: 'Barrow Burden',
+        yell: 'Shoulder the barrow! One back breaks. Five backs bend.',
+      },
+      // The gap each holds after landing before the next telegraph may start: shorter than
+      // the 4.5 s after a slam, since these land on the far players rather than the melee.
+      spacing: 2,
+    },
+    // Every heavy slam he lands PUNTS rather than shoves (mob/boss_slams.ts). He is
+    // thirteen units of quarried granite and his whole identity is his fists; a victim who
+    // slides two yards along the floor reads as having been pushed by a large man, and one
+    // thrown four yards into the air reads as having been hit by a building.
+    //
+    // up 11 gives an apex of 11^2/32 = 3.8 yards and about 1.4s of air. That is under the
+    // 12-yard FALL_SAFE_DISTANCE with room to spare, so the landing that follows can never
+    // quietly add fall damage on top of the slam that caused it.
+    launch: { distance: 6, up: 11, outSpeed: 7, edgeScale: 0.55 },
+    // He is loose in an inhabited zone, so his craters take the wildlife with them. A third
+    // of the raid number: a mirefen boar has a fraction of a raider's pool, and at full
+    // strength one warpath lap would sterilize every camp on the circuit and leave the zone
+    // empty for everyone who was not in the raid.
+    collateral: { mult: 0.34 },
+    // Thirteen yards of moss-grown granite walking around an open zone. Seeing him from the
+    // far shore of the mire IS the encounter's advertisement, and it is the difference
+    // between a world boss and a dungeon boss standing outdoors. 460 covers the mire and its
+    // approaches without pushing him into a neighbouring zone's snapshot.
+    landmarkRange: 460,
+    // Barrowhide: the level-spread mechanic (mob/eye_ward.ts). While the ward stands he
+    // shrugs off most of every hit, and only the Shardpike's eye thrust (lance_trial.ts,
+    // fixed damage, level-blind) can pry it open. Low levels open the window, high levels
+    // spend it; the seal after each window sets the fight's breathing rhythm.
+    eyeWard: {
+      name: 'Barrowhide',
+      reduction: 0.6,
+      blindSeconds: 14,
+      refractorySeconds: 40,
+      blindName: 'Blinded',
+      blindYell: 'MY EYE! The little wrights come for their due!',
+      yellRange: 160,
+    },
+    ccImmune: true,
+    slowImmune: true,
+    hpBase: 4000,
+    hpPerLevel: 800,
+    dmgBase: 54,
+    dmgPerLevel: 10.3,
+    attackSpeed: 2.4,
+    armorPerLevel: 46,
+    // 5.0 is doing two jobs and neither is arbitrary.
+    //
+    // Design: it is well under a player's base run of 7, so he can always be outrun.
+    // His damage lives in telegraphed circles you walk out of, which only works as
+    // counterplay if walking out is possible.
+    //
+    // Animation: it sits just under the renderer's GAIT_RUN_ENTER (5.2), so he is
+    // ALWAYS in the walk gait and never flip-flops across that threshold mid-chase,
+    // and 5.0 divided by his measured walkRef of 4.14 is 1.21x the clip's natural
+    // rate, which is inside the clamp and therefore actually plants his feet. The
+    // previous 6.4 divided out to 2.3x, pinned at the 1.8 ceiling, and read as a
+    // giant jogging frantically in place while sliding forward.
+    moveSpeed: 5.0,
+    // Wide, because he is 13 units tall and visible from far outside it: an aggro
+    // radius smaller than his silhouette reads as a statue you can walk up and touch.
+    aggroRadius: 26,
+    // Deliberately the literal, not an import: `src/sim/` may never import from
+    // `src/render/`, and this has a render-side twin (BALGATH_SCALE) the gait refs were
+    // measured at. A test welds the two rather than a cross-layer import.
+    //
+    // It also sets his melee reach through `scaledDefaultMobMeleeRange`, and that is
+    // wanted here: unlike Thunzharr, who is rendered at scale 8 and has his reach pinned
+    // down to a scale-5 body so he cannot swing past his own model at kiters, Balgath is
+    // MEANT to be outrun. His reach matching his arms is the honest read.
+    scale: 4.2,
+    // The circle smash: big, slow, telegraphed. Long cadence and a wide footprint so
+    // the ground ring reads from across the fen. It lands as a disc round his feet and a
+    // band at the rim with a safe ring of open ground between (sim/boss_ring_gap.ts):
+    // owner playtest, the gap he saw drawn should be somewhere to step into.
+    aoePulse: {
+      min: 36,
+      max: 50,
+      radius: 12,
+      every: 14,
+      name: 'Barrow Smash',
+      school: 'physical',
+      fx: 'nova',
+      safeGap: BARROW_SMASH_GAP,
+    },
+    // The shockwave stomp: tighter and quicker, and the smaller radius is also how the
+    // renderer tells the two slams apart when it draws their ground rings.
+    stomp: {
+      radius: 7,
+      every: 22,
+      duration: 1.5,
+      min: 18,
+      max: 28,
+      name: 'Shockwave Stomp',
+      school: 'physical',
+    },
+    // Wake of the Fallen Star (mob/boss_starwake.ts), which replaced the Barrowglass Scry: a
+    // cast bar and a 30-yard nova with nothing on the ground to read. He drives both fists
+    // into the fen and the star that woke him wakes again: it lights up in his crater, lava
+    // fissures crawl out behind a telegraph that fills, geysers burst along them and under
+    // a few players, and molten pools linger where the geysers burst.
+    //
+    // Timing: 2.5 s of warning (the bar), 2 s for the fissures to crawl to their tips, and
+    // 3 s with the whole pattern on the ground before it erupts, so everyone has five
+    // seconds from the moment the paths appear. The 40 s cadence is the Scry's, and the
+    // whole run plus 2 s holds the spacing lock, so nothing else is telegraphed meanwhile.
+    //
+    // Damage sits where the Scry sat (70 to 90), split by how you failed to move: a fissure
+    // (62 to 82) is the big read, a geyser (46 to 62) is Boulder Toss weight, and a pool
+    // burns 12 to 18 a second for eight seconds, which is a nudge to find new ground rather
+    // than a death sentence for the level 8s in the raid.
+    starwake: {
+      every: 40,
+      warn: 2.5,
+      crawl: 2,
+      hold: 3,
+      spacing: 2,
+      // The crater centre (MIREFEN_IMPACT_CRATER in world.ts; tests/balgath_starwake.test.ts
+      // welds the two). Fighting 12 to 45 yards from it, the fissures fan out FROM the star
+      // toward him; anywhere else (his far pickets, or right on top of the star) they burst
+      // from under his own feet in an even ring (boss_starwake_geometry.ts starwakeMode).
+      star: { x: 149.5, z: 295 },
+      starMinReach: 12,
+      starMaxReach: 45,
+      fissures: {
+        // Four strips over 105 degrees toward him: 35-degree lanes, wide open at his range.
+        fanCount: 4,
+        fanDeg: 105,
+        reachPast: 25,
+        minLength: 32,
+        maxLength: 70,
+        // Five strips round his feet: 72-degree lanes, clear of both strips from five
+        // yards out, so the melee steps out a few yards into a lane rather than running.
+        ringCount: 5,
+        ringLength: 34,
+        jitterDeg: 5,
+        halfWidth: 2.5,
+        min: 62,
+        max: 82,
+      },
+      geysers: {
+        targets: 3,
+        range: 45,
+        radius: 4.5,
+        alongFraction: 0.6,
+        fissureRadius: 3.5,
+        min: 46,
+        max: 62,
+      },
+      pool: { seconds: 8, interval: 1, min: 12, max: 18, name: 'Molten Fen' },
+      // The eruption also opens the sky: for eight seconds (the pools' life) a wave of two
+      // or three meteors comes down every 0.5 to 0.7 s, some 25 to 35 in all, round the
+      // players, the star and the cracks. Each is Ignivar's Falling Cinders exactly (his
+      // placement and spacing, the same red circle and the same 2.5 s fall), with a flat
+      // hit a notch under a geyser's, since there are so many, rather than the raid's
+      // share of max health. A player who keeps moving takes one or two at most.
+      meteors: {
+        range: 45,
+        seconds: 8,
+        waveMin: 0.5,
+        waveMax: 0.7,
+        perWaveMin: 2,
+        perWaveMax: 3,
+        min: 36,
+        max: 48,
+        name: 'Star Debris',
+      },
+      name: 'Wake of the Fallen Star',
+      school: 'fire',
+      yell: 'The star woke me once. WAKE AGAIN, and burn them all!',
+    },
+    // The heavy mitigation the concept called for: what makes him want numbers rather
+    // than gear, since a small group cannot out-damage the refresh.
+    stoneskin: {
+      amount: 500,
+      every: 27,
+      duration: 9,
+      name: 'Barrowhide',
+      school: 'physical',
+    },
+    knockback: { chance: 0.3, distance: 7, name: 'Backhand' },
+    // Four items of his OWN, and the reason they had to be authored rather than borrowed.
+    // An item's level derives from its highest source level, so a level-20 boss dropping
+    // this zone's level-10 gear silently re-levels it; sharing the existing level-20 tier
+    // instead drags in four class-set Reliquary pages that would have to start naming a
+    // Mirefen boss. Both were tried and both were wrong, which is what forced the
+    // `balgath_spoils` set below into existence: `worldBoss: true` obliges a Reliquary
+    // page, and a page with no relics of his own is one you complete without meeting him.
+    //
+    // Three more rows make the kill worth turning up for twice, which is the actual
+    // design problem this table has to solve for a boss in the zone players quit in:
+    //
+    // THE FOREMAN'S WAGE (`foremans_wage`, maxPlayerLevel 13): the locals' share. Rolled
+    // only for a contributor at or below the zone's top level, one of three level-13
+    // rares at 30% each (so nine kills in ten pay a local something wearable), and
+    // listed FIRST so the one-gear-item cap in rollWorldBossLoot hands a level eight the
+    // blue they can wear rather than a level-20 epic they cannot. A level twenty on the
+    // same kill never sees these rows at all. The gate is also what sets the items'
+    // level (item_level.ts): they are level-13 content, not re-levelled boss loot.
+    //
+    // THE REINS (`reins_drakemaw_raptor`): the one epic mount with no acquisition path,
+    // held back by owner call for "a dedicated world boss" (content/drakelands.ts). One
+    // percent, ungrouped so it rides independently of the gear roll, personal per
+    // contributor and once a day per character through the world-boss lockout. That is
+    // the retail world-boss mount rate (Sha of Anger's serpent, the Galleon), and against
+    // a daily lockout it is a mount most of the realm will see on someone before they see
+    // it in their own bags, which is what makes a horizon out of it.
+    //
+    // THE SPOILS (`balgath_spoils`) and THE TRINKETS (`balgath_trinkets`): the level-20
+    // share, built on Thunzharr's table (content/zone3.ts), the one world boss the realm
+    // already calibrates against. Spoils first: five pieces at 8% each, a 40% roll for
+    // one piece, exactly his main group. The trinkets roll second, five at 6% each (30%),
+    // and the one-gear-item cap in rollWorldBossLoot keeps a trinket only when the spoils
+    // missed: an EFFECTIVE 18% (0.60 x 0.30), against the 19% his belt group pays, and
+    // about 3.6% for any one named trinket. Together a level twenty walks away with a
+    // piece about 58% of kills (Thunzharr: 59%), never two, and the trinkets stay the
+    // rarer half because their effects are the bigger prize. Every row stays personal
+    // loot behind the world-boss lockout.
+    loot: [
+      { copper: 2500, chance: 1 },
+      { itemId: 'bogiron_nugget', chance: 1 },
+      { itemId: 'foremans_wage_band', chance: 0.3, rollGroup: 'foremans_wage', maxPlayerLevel: 13 },
+      { itemId: 'mirelight_locket', chance: 0.3, rollGroup: 'foremans_wage', maxPlayerLevel: 13 },
+      { itemId: 'fenwright_grips', chance: 0.3, rollGroup: 'foremans_wage', maxPlayerLevel: 13 },
+      { itemId: 'foremans_barrowmaul', chance: 0.08, rollGroup: 'balgath_spoils' },
+      { itemId: 'barrowhide_pauldrons', chance: 0.08, rollGroup: 'balgath_spoils' },
+      { itemId: 'mirestone_stride', chance: 0.08, rollGroup: 'balgath_spoils' },
+      { itemId: 'loomshard_eye', chance: 0.08, rollGroup: 'balgath_spoils' },
+      { itemId: 'craterglass_stave', chance: 0.08, rollGroup: 'balgath_spoils' },
+      { itemId: 'knucklebone_of_balgath', chance: 0.06, rollGroup: 'balgath_trinkets' },
+      { itemId: 'muster_standard', chance: 0.06, rollGroup: 'balgath_trinkets' },
+      { itemId: 'guttered_eye', chance: 0.06, rollGroup: 'balgath_trinkets' },
+      { itemId: 'barrowstone_heart', chance: 0.06, rollGroup: 'balgath_trinkets' },
+      { itemId: 'muster_grapnel', chance: 0.06, rollGroup: 'balgath_trinkets' },
+      { itemId: 'reins_drakemaw_raptor', chance: 0.01 },
+    ],
+    yells: {
+      engage: 'One eye is enough to find you.',
+      enrage: 'The mound breaks! Let it all come down!',
+    },
+    color: 0xa8a496,
+  },
+  mirefen_broodmother: {
+    id: 'mirefen_broodmother',
+    name: 'The Broodmother',
+    minLevel: 10,
+    maxLevel: 10,
+    family: 'spider',
+    hpBase: 150,
+    hpPerLevel: 26,
+    dmgBase: 9,
+    dmgPerLevel: 2.4,
+    attackSpeed: 1.8,
+    armorPerLevel: 16,
+    moveSpeed: 8,
+    aggroRadius: 14,
+    boss: true,
+    stackPoison: {
+      chance: 0.35,
+      perTick: 3,
+      interval: 2,
+      duration: 12,
+      maxStacks: 5,
+      name: 'Brood Venom',
+      school: 'nature',
+    },
+    loot: [
+      { copper: 300, chance: 1 },
+      { itemId: 'marshstrider_boots', chance: 0.4 },
+      { itemId: 'broodmother_silk_robe', chance: 0.25 },
+      { itemId: 'spider_leg', chance: 1 },
+      { itemId: 'fenwarden_sabatons', chance: 0.3 },
+    ],
+    scale: 1.4,
+    color: 0x641e16,
+    // The spider boss that spins the Mirefen's webs (it drops
+    // broodmother_silk_robe). Phase 11m added the tag. A count-1 boss, so a
+    // hollow silk floor member: the ledger records its density beside the count.
+    componentTags: ['silk'],
+  },
+  drowned_dead: {
+    id: 'drowned_dead',
+    name: 'Drowned Dead',
+    minLevel: 9,
+    maxLevel: 11,
+    family: 'undead',
+    hpBase: 52,
+    hpPerLevel: 20,
+    dmgBase: 8,
+    dmgPerLevel: 2.3,
+    attackSpeed: 2.3,
+    armorPerLevel: 14,
+    moveSpeed: 6.5,
+    aggroRadius: 11,
+    lifeleech: { healFrac: 0.5, chance: 0.35, name: 'Drowning Grasp' },
+    // A clammy, fevered touch that rots the living from within, wasting away
+    // their constitution (Stamina) and shrinking their health pool.
+    plague: { chance: 0.3, sta: 12, duration: 12, name: 'Bog Rot' },
+    loot: [
+      { copper: 42, chance: 1 },
+      { itemId: 'bone_fragments', chance: 0.5 },
+      { itemId: 'cracked_fetish', chance: 0.3 },
+    ],
+    scale: 1.0,
+    color: 0x7fb3d5,
+  },
+  drowned_warlord: {
+    id: 'drowned_warlord',
+    // Named quest capstone: single spawn on the slow elite respawn cadence
+    // (the Old Cragmaw precedent), not the trash farm population.
+    respawnMult: 7.2,
+    name: 'The Drowned Warlord',
+    minLevel: 12,
+    maxLevel: 12,
+    family: 'undead',
+    elite: true,
+    hpBase: 60,
+    hpPerLevel: 22,
+    dmgBase: 9,
+    dmgPerLevel: 2.5,
+    attackSpeed: 2.2,
+    armorPerLevel: 16,
+    moveSpeed: 6.5,
+    aggroRadius: 12,
+    lifeleech: { healFrac: 0.5, chance: 0.4, name: 'Drowning Grasp' },
+    // Bog Rot: a fevered, clammy grip that wastes the living from within (Stamina drain).
+    plague: { chance: 0.35, sta: 14, duration: 12, name: 'Bog Rot' },
+    loot: [
+      { copper: 120, chance: 1 },
+      { itemId: 'bone_fragments', chance: 1 },
+      { itemId: 'cracked_fetish', chance: 0.6 },
+    ],
+    scale: 1.3,
+    color: 0x3a6ea5,
+  },
+  fen_troll: {
+    id: 'fen_troll',
+    name: 'Mirefen Troll',
+    minLevel: 10,
+    maxLevel: 12,
+    family: 'troll',
+    hpBase: 56,
+    hpPerLevel: 21,
+    dmgBase: 9,
+    dmgPerLevel: 2.4,
+    attackSpeed: 2.2,
+    armorPerLevel: 18,
+    moveSpeed: 7.5,
+    aggroRadius: 11,
+    // Withering Rot: the troll's fetid claws rot a struck victim's sinews, draining
+    // Agility (thinning their armor and dodge) for a few seconds.
+    wither: { chance: 0.3, agi: 18, duration: 8, name: 'Withering Rot', school: 'nature' },
+    loot: [
+      { copper: 50, chance: 1 },
+      { itemId: 'troll_fetish', chance: 0.6, questId: 'q_troll_fetishes' },
+      { itemId: 'chipped_tusk', chance: 0.4 },
+      { itemId: 'bogiron_nugget', chance: 0.3 },
+      { itemId: 'elixir_of_the_bear', chance: 0.008 },
+      { itemId: 'marshlight_hauberk', chance: 0.012 },
+      // The rare world-drop bag, and the middle of its three ordinary-mob rows
+      // (the others are on zone3's Deeprock Tunneler and Thornpeak Ogre). All
+      // three hosts rob the roads, so the pack turns up on the humanoids that
+      // would have taken it off a traveller. A rare 16-slot bag is a genuine
+      // chase item, so all three rows sit inside the classic normal-mob blue
+      // band (tests/loot_quality_rates.test.ts); the elevated row is on a rare
+      // mob, not here.
+      { itemId: 'wayfarers_backpack', chance: 0.0015 },
+    ],
+    scale: 1.15,
+    color: 0x229954,
+    componentTags: ['claw', 'tusk'],
+  },
+  grubjaw: {
+    id: 'grubjaw',
+    name: 'Grubjaw the Glutton',
+    minLevel: 12,
+    maxLevel: 12,
+    family: 'troll',
+    rare: true,
+    hpBase: 130,
+    hpPerLevel: 26,
+    dmgBase: 10,
+    dmgPerLevel: 2.5,
+    attackSpeed: 2.2,
+    armorPerLevel: 20,
+    moveSpeed: 7.5,
+    aggroRadius: 13,
+    loot: [
+      { copper: 200, chance: 1 },
+      { itemId: 'grubjaw_tusk', chance: 1, questId: 'q_grubjaw' },
+      { itemId: 'chipped_tusk', chance: 1 },
+    ],
+    purgeOnHit: { chance: 0.3, name: 'Spellgnaw' },
+    // Playtest bump, 75% over the first cut: the Glutton should loom over the
+    // Mirefen trolls he feeds beside. Past the scale-2 threshold his melee
+    // reach needs the bespoke profile in mob_combat.ts (the wildheart whiff
+    // lesson) and his gait refs are re-measured for the bigger stride.
+    scale: 2.275,
+    color: 0x145a32,
+  },
+  gravecaller_cultist: {
+    id: 'gravecaller_cultist',
+    name: 'Gravecaller Cultist',
+    minLevel: 10,
+    maxLevel: 12,
+    family: 'humanoid',
+    hpBase: 50,
+    hpPerLevel: 20,
+    dmgBase: 9,
+    dmgPerLevel: 2.4,
+    attackSpeed: 2.0,
+    armorPerLevel: 20,
+    moveSpeed: 7,
+    aggroRadius: 11,
+    // The cultist's hex leaves the victim taking more damage from everyone —
+    // a soft-up that rewards a group focusing the cursed player's target down.
+    vulnerability: {
+      chance: 0.2,
+      amp: 0.15,
+      duration: 10,
+      name: 'Curse of Frailty',
+      school: 'shadow',
+    },
+    loot: [
+      { copper: 55, chance: 1 },
+      { itemId: 'linen_scrap', chance: 0.3 },
+      { itemId: 'tallow_candle', chance: 0.3 },
+    ],
+    // The cultist's muttered curse weakens its prey: a hexed victim deals less
+    // damage and heals for less until the hex fades.
+    hex: { chance: 0.3, reductionPct: 0.2, duration: 10, name: 'Weakening Hex', school: 'shadow' },
+    scale: 1.0,
+    color: 0x6c3483,
+    componentTags: ['cloth'],
+  },
+  gravecaller_summoner: {
+    id: 'gravecaller_summoner',
+    name: 'Gravecaller Summoner',
+    minLevel: 11,
+    maxLevel: 12,
+    family: 'humanoid',
+    hpBase: 46,
+    hpPerLevel: 19,
+    dmgBase: 10,
+    dmgPerLevel: 2.5,
+    attackSpeed: 2.0,
+    armorPerLevel: 16,
+    moveSpeed: 7,
+    aggroRadius: 12,
+    silence: { chance: 0.3, duration: 4, name: 'Silencing Shriek', school: 'shadow' },
+    // Grave Blight: a landed hit can sear undeath into the wound, devouring the
+    // next 120 healing the victim receives before it fades. A sustain-denial axis
+    // that complements (not compounds) the summoner's silence lockout: healers
+    // must out-pace the blight or top off after it lapses.
+    healAbsorb: { chance: 0.25, amount: 120, duration: 10, name: 'Grave Blight', school: 'shadow' },
+    loot: [
+      { copper: 60, chance: 1 },
+      { itemId: 'cult_cipher', chance: 0.6, questId: 'q_summoners' },
+    ],
+    scale: 1.0,
+    color: 0x884ea0,
+    componentTags: ['cloth'],
+  },
+  gravecaller_mender: {
+    id: 'gravecaller_mender',
+    name: 'Gravecaller Mender',
+    minLevel: 11,
+    maxLevel: 12,
+    family: 'humanoid',
+    hpBase: 44,
+    hpPerLevel: 18,
+    dmgBase: 8,
+    dmgPerLevel: 2.2,
+    attackSpeed: 2.1,
+    armorPerLevel: 16,
+    moveSpeed: 7,
+    aggroRadius: 12,
+    // Grave Mending: keeps its cultist pack alive, knitting every wounded ally's
+    // wounds shut on a slow cadence. Pull it away from the camp — or drop it
+    // first — or the fight never ends.
+    mendAlly: {
+      healMin: 26,
+      healMax: 38,
+      radius: 14,
+      every: 6,
+      name: 'Grave Mending',
+      school: 'shadow',
+    },
+    // Draining Litany: the mender siphons the victim's vigour to fuel its grave
+    // prayers, inflating every ability the victim uses by 40% for 8s on a hit.
+    costTax: { chance: 0.3, pct: 0.4, duration: 8, name: 'Draining Litany', school: 'shadow' },
+    loot: [
+      { copper: 58, chance: 1 },
+      { itemId: 'cult_cipher', chance: 0.4, questId: 'q_summoners' },
+      { itemId: 'tallow_candle', chance: 0.3 },
+      { itemId: 'duskthorn_mantle', chance: 0.02 },
+    ],
+    scale: 1.0,
+    color: 0x9b59b6,
+  },
+  sister_nhalia: {
+    id: 'sister_nhalia',
+    name: 'Sister Nhalia',
+    minLevel: 12,
+    maxLevel: 12,
+    family: 'humanoid',
+    rare: true,
+    elite: true,
+    canSwim: true,
+    ccImmune: true,
+    respawnMult: 648,
+    hpBase: 330,
+    hpPerLevel: 60,
+    dmgBase: 16,
+    dmgPerLevel: 3.8,
+    attackSpeed: 2.0,
+    armorPerLevel: 30,
+    moveSpeed: 7,
+    aggroRadius: 13,
+    aoePulse: { min: 18, max: 26, radius: 11, every: 9, name: 'Dirge of Nhalia', school: 'shadow' },
+    // Spirit Siphon: the priestess's touch drains a caster's Spirit, choking
+    // their out-of-combat mana regen for the duration (see siphonSpirit affix).
+    siphonSpirit: { chance: 0.3, spi: 14, duration: 10, name: 'Spirit Siphon', school: 'shadow' },
+    // A bone-chilling shriek that sends the living fleeing in terror — her dirge
+    // is grief, her wail is dread. Telegraphed: first scream after one interval.
+    terrify: { radius: 12, every: 16, duration: 3, name: 'Keening Wail', school: 'shadow' },
+    summonAdds: { mobId: 'nhalia_mourner', count: 2, atHpPct: [0.65, 0.35] },
+    loot: [
+      { copper: 350, chance: 1 },
+      { itemId: 'tallow_candle', chance: 1 },
+      { itemId: 'nhalias_funeral_wraps', chance: 0.25 },
+      { itemId: 'nhalias_dirgeblade', chance: 0.25, rollGroup: 'sister_nhalia_chase' },
+    ],
+    scale: 1.08,
+    color: 0x3b1f4a,
+  },
+  nhalia_mourner: {
+    id: 'nhalia_mourner',
+    name: 'Nhalia Mourner',
+    minLevel: 11,
+    maxLevel: 12,
+    family: 'humanoid',
+    hpBase: 46,
+    hpPerLevel: 17,
+    dmgBase: 8,
+    dmgPerLevel: 2.3,
+    attackSpeed: 2.0,
+    armorPerLevel: 14,
+    moveSpeed: 7,
+    aggroRadius: 12,
+    // Curse of Tongues: the mourners' dirge garbles a caster's incantations, slowing
+    // their spell cast times by 30% for 10s on a landed hit (30% chance).
+    tongues: { chance: 0.3, mult: 1.3, duration: 10, name: 'Dirge of Tongues', school: 'shadow' },
+    loot: [],
+    scale: 0.95,
+    color: 0x332044,
+  },
+  deacon_voss: {
+    id: 'deacon_voss',
+    name: 'Deacon Voss',
+    minLevel: 12,
+    maxLevel: 12,
+    family: 'humanoid',
+    hpBase: 200,
+    hpPerLevel: 30,
+    dmgBase: 11,
+    dmgPerLevel: 2.5,
+    attackSpeed: 2.4,
+    armorPerLevel: 26,
+    moveSpeed: 7,
+    aggroRadius: 14,
+    boss: true,
+    aoePulse: { min: 10, max: 14, radius: 10, every: 12, name: 'Drowning Hymn' },
+    // The deacon brands the faithless with a searing arcane rune that festers.
+    arcaneRot: {
+      chance: 0.3,
+      perTick: 7,
+      interval: 3,
+      duration: 12,
+      name: 'Profane Rune',
+      school: 'arcane',
+    },
+    loot: [
+      { copper: 600, chance: 1 },
+      { itemId: 'tallow_candle', chance: 1 },
+      { itemId: 'voss_sanctified_mace', chance: 0.25 },
+      { itemId: 'fenshadow_maul', chance: 0.25 },
+    ],
+    scale: 1.3,
+    color: 0x512e5f,
+  },
+  bog_bloat: {
+    id: 'bog_bloat',
+    name: 'Bog Bloat',
+    minLevel: 9,
+    maxLevel: 11,
+    family: 'beast',
+    hpBase: 44,
+    hpPerLevel: 17,
+    dmgBase: 7,
+    dmgPerLevel: 2.0,
+    attackSpeed: 2.6,
+    armorPerLevel: 9,
+    moveSpeed: 6,
+    aggroRadius: 10,
+    // A swollen marsh gas-bag: when slain its corpse swells for 1.5s, then
+    // bursts in a cloud of caustic spores — get clear or share the blast.
+    deathThroes: {
+      min: 14,
+      max: 22,
+      radius: 8,
+      delay: 1.5,
+      name: 'Caustic Spores',
+      school: 'nature',
+    },
+    loot: [
+      { copper: 40, chance: 1 },
+      { itemId: 'tangled_weed', chance: 0.5 },
+    ],
+    scale: 1.1,
+    color: 0x6b8e23,
+    componentTags: ['hide', 'meat'],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// NPCs (Fenbridge hub)
+// ---------------------------------------------------------------------------
+
+export const ZONE2_NPCS: Record<string, NpcDef> = {
+  warden_fenwick: {
+    id: 'warden_fenwick',
+    name: 'Warden Fenwick',
+    title: 'Warden of Fenbridge',
+    pos: { ...FENBRIDGE_NPC_PLACEMENTS_BY_ID.warden_fenwick.position },
+    facing: FENBRIDGE_NPC_PLACEMENTS_BY_ID.warden_fenwick.facing,
+    color: 0x7e5109,
+    questIds: [
+      'q_fenbridge_muster',
+      'q_muster_summons',
+      'q_prowlers',
+      'q_deepfen',
+      'q_deepfen_purge',
+      'q_trolls',
+      'q_deacon',
+    ],
+    greeting: 'Hold at the gate, $C. Past those reeds, the fen does the killing for us.',
+  },
+  socketwright_skerrit: {
+    id: 'socketwright_skerrit',
+    name: 'Maben Skerrit',
+    title: 'the Socketwright',
+    // West of the Fenbridge gate on measured dry ground (terrainHeight 0.15 vs water
+    // -4.3). Balgath's circuit once ran through the gate; it now rings the Starfall
+    // Crater's muster pickets 130 yards east, so no slam, shockwave, or wreck telegraph
+    // ever reaches the man handing out the counter to them.
+    pos: { x: -22, z: 358 },
+    facing: 1.71,
+    color: 0x8a6d3b,
+    questIds: ['q_socketwrights_due'],
+    greeting:
+      'Forty years since I ground that eye and set it in his socket, and never a day paid. You want to hurt the Foreman, $C? Aim for my work.',
+  },
+  brother_aldric_fen: {
+    id: 'brother_aldric_fen',
+    name: 'Brother Aldric',
+    title: 'Priest of the Vale',
+    pos: { ...FENBRIDGE_NPC_PLACEMENTS_BY_ID.brother_aldric_fen.position },
+    facing: FENBRIDGE_NPC_PLACEMENTS_BY_ID.brother_aldric_fen.facing,
+    color: 0xf7f9f9,
+    questIds: [
+      'q_aldrics_fallen_star',
+      'q_idols',
+      'q_drowned',
+      'q_drowned_censers',
+      'q_no_rest',
+      'q_rite_of_redemption',
+      'q_summoners',
+      'q_bastion_door',
+      'q_mistcaller',
+      'q_highwatch_summons',
+    ],
+    greeting:
+      'The Light keep you above the water, $N. The dead in this fen do not sleep: they wade.',
+  },
+  provisioner_hale: {
+    id: 'provisioner_hale',
+    name: 'Provisioner Hale',
+    title: 'Provisioner',
+    pos: { ...FENBRIDGE_NPC_PLACEMENTS_BY_ID.provisioner_hale.position },
+    facing: FENBRIDGE_NPC_PLACEMENTS_BY_ID.provisioner_hale.facing,
+    color: 0x1e8449,
+    questIds: ['q_prowler_pelts', 'q_fen_supplies', 'q_the_codfather', 'q_grubjaw'],
+    vendorItems: [
+      'fenbridge_rye',
+      'marsh_mint_tea',
+      'smoked_eel',
+      'silvermist_cordial',
+      'lesser_healing_potion',
+      'lesser_mana_potion',
+      'bogiron_mace',
+      'fenreed_staff',
+      'mirefen_skinner',
+      'bogiron_hauberk',
+      'marshcloth_robe',
+      'reedwoven_jerkin',
+      'fenwalker_boots',
+      'reedwoven_trousers',
+      // Gathering tools (#2343: every node harvest needs a matching tool, so
+      // each zone hub stocks the tiers its own nodes use; Mirefen has tier-1
+      // and tier-2 nodes), and the rod its own water takes.
+      'copper_mining_pick',
+      'iron_mining_pick',
+      'handaxe',
+      'felling_axe',
+      'gathering_sickle',
+      'bronze_sickle',
+      'simple_fishing_pole',
+      // The marsh's own water takes a tier-2 rod (professions/fishing_zones.ts),
+      // so the hub rule finally speaks to fishing: sell the rung this zone's
+      // water needs, where that water is. Without this the marsh is the one
+      // place in the world that demands a tool no local counter carries, and
+      // the Codfather sends a level-6 angler back to Eastbrook for it.
+      'ironreel_fishing_rod',
+      'field_kit',
+    ],
+    greeting:
+      'Dry boots, dry bread, dry powder: at Fenbridge you get two of the three on a good day.',
+  },
+  herbalist_yara: {
+    id: 'herbalist_yara',
+    name: 'Herbalist Yara',
+    title: 'Herbalist',
+    pos: { ...FENBRIDGE_NPC_PLACEMENTS_BY_ID.herbalist_yara.position },
+    facing: FENBRIDGE_NPC_PLACEMENTS_BY_ID.herbalist_yara.facing,
+    color: 0x7d3c98,
+    questIds: ['q_widows', 'q_broodmother'],
+    greeting: 'Mind the thicket west of the road. The webs are thick as sailcloth this season.',
+  },
+  scout_maren: {
+    id: 'scout_maren',
+    name: 'Scout Maren',
+    title: "Marshal's Scout",
+    pos: { ...FENBRIDGE_NPC_PLACEMENTS_BY_ID.scout_maren.position },
+    facing: FENBRIDGE_NPC_PLACEMENTS_BY_ID.scout_maren.facing,
+    color: 0x7d6608,
+    questIds: ['q_troll_fetishes', 'q_cult_camp', 'q_olen'],
+    greeting:
+      'Quiet feet and a short blade keep you breathing out here. Speak quick, for I am due back in the reeds.',
+  },
+  bursar_petra_vell: {
+    id: 'bursar_petra_vell',
+    name: 'Bursar Petra Vell',
+    title: 'The Gilded Strongbox',
+    pos: { ...FENBRIDGE_NPC_PLACEMENTS_BY_ID.bursar_petra_vell.position },
+    facing: FENBRIDGE_NPC_PLACEMENTS_BY_ID.bursar_petra_vell.facing,
+    color: 0xc9a227,
+    questIds: [],
+    banker: true,
+    greeting:
+      'The Gilded Strongbox keeps clean ledgers and cleaner vaults. What shall we stow for you?',
+  },
+  chronicler_osric_fenn: {
+    id: 'chronicler_osric_fenn',
+    name: 'Chronicler Osric Fenn',
+    title: 'The Marsh Chronicle',
+    pos: { ...FENBRIDGE_NPC_PLACEMENTS_BY_ID.chronicler_osric_fenn.position },
+    facing: FENBRIDGE_NPC_PLACEMENTS_BY_ID.chronicler_osric_fenn.facing,
+    color: 0x3fa66b, // fen teal: the chronicler tint is his identity (shared mage visual)
+    questIds: [],
+    greeting: 'Mind the damp on the pages, $N. The fen eats more books than readers ever will.',
+  },
+  // Crafting-station master (Professions 2.0): stands beside the
+  // Fenbridge tannery (content/professions.ts STATIONS), on the northwest
+  // edge of town with a guard-safe camp margin.
+  tanner_hesk: {
+    id: 'tanner_hesk',
+    name: 'Tanner Hesk',
+    title: 'Master of the Tannery',
+    pos: { ...FENBRIDGE_NPC_PLACEMENTS_BY_ID.tanner_hesk.position },
+    facing: FENBRIDGE_NPC_PLACEMENTS_BY_ID.tanner_hesk.facing,
+    color: 0x8a5a2a,
+    // Professions 2.0: the Fenbridge tannery master runs the repeatable
+    // leatherworking work order.
+    questIds: ['q_prof_workorder_tannery'],
+    // Station stocking: the tannery master sells its goods and the vendor-only
+    // tanning staple. thorium_ore, the premium reagent recipe_duskhide_wraps
+    // consumes, is NOT here: it is a node yield, and no NPC stocks a gathered
+    // material (professions.md, Locked rulings).
+    vendorItems: ['travelers_knapsack', 'tough_jerky', 'smoked_eel', 'tanning_agent'],
+    greeting: 'A hide is only as good as its tanning, $C. The vats are ready when you are.',
+  },
+  // The farming go-live: the tier-2 farmer at the Fenbridge raised beds
+  // (content/farm_patches.ts patch_mirefen), on the town side of the beds
+  // facing north across them. His placement row lives in fenbridge_layout.ts
+  // services.npcs like every other Fenbridge NPC (the layout suite pins the
+  // ZONE2_NPCS key list against that table). Stock: the tier-2 seeds and
+  // compost, no tool (the rung-one hoe is Eastbrook's counter and the crafted
+  // hoes are stocked nowhere). tests/farmer_npc_placement.test.ts pins the
+  // seat beside the beds.
+  farmer_teasel: {
+    id: 'farmer_teasel',
+    name: 'Farmer Teasel',
+    title: 'Fen Paddy Farmer',
+    pos: { ...FENBRIDGE_NPC_PLACEMENTS_BY_ID.farmer_teasel.position },
+    facing: FENBRIDGE_NPC_PLACEMENTS_BY_ID.farmer_teasel.facing,
+    color: 0x6b7f3a,
+    questIds: [],
+    vendorItems: ['marsh_rice_seed', 'bog_beet_seed', 'compost', 'field_kit'],
+    farmer: true,
+    greeting:
+      'Marsh rice and bog beet seed, $C, and compost to feed them. The paddies drain slow, so mind where you tread.',
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Quests
+// ---------------------------------------------------------------------------
+
+export const ZONE2_QUESTS: Record<string, QuestDef> = {
+  // The Mirefen muster's chain (Fenwick's summons, the pike drill, the weekly trophy).
+  ...MUSTER_QUESTS,
+  q_fenbridge_muster: {
+    id: 'q_fenbridge_muster',
+    name: 'Muster at Fenbridge',
+    giverNpcId: 'brother_aldric',
+    turnInNpcId: 'warden_fenwick',
+    text: "Morthen's writings named a master in the northern marsh, a 'Fogbinder.' Now Warden Fenwick has sounded the muster horn at Fenbridge, and I do not believe in coincidence, $N. Take the causeway north, pull the muster order from the gatepost, and present it to the Warden.",
+    completionText:
+      "Aldric's seal, is it? Then you'll do. The fen has been swallowing my patrols whole, and I need every blade that floats.",
+    objectives: [
+      { type: 'collect', itemId: 'fen_muster_order', count: 1, label: 'Fenbridge Muster Order' },
+    ],
+    xpReward: 300,
+    copperReward: 200,
+    itemRewards: {},
+    minLevel: 6,
+  },
+  q_socketwrights_due: {
+    id: 'q_socketwrights_due',
+    name: "The Socketwright's Due",
+    giverNpcId: 'socketwright_skerrit',
+    turnInNpcId: 'socketwright_skerrit',
+    text: 'I set the Barrowglass in that socket myself: ground the lens, seated it, wedged it true. The barrow-masters never paid me a copper, and now my work walks around flattening the fen. Take my Shardpike. Plant the butt, hold the point steady, however long it takes, and when your arms are sure, put it through the eye. The hide he wears is bound to that shard, $N: blind him, and every blade in the mire will finally bite.',
+    completionText:
+      'You felt it give, did you? Forty years of interest, paid through the socket. The pike is yours, friend. He will heal, he always does, so go collect again whenever the fancy takes you.',
+    objectives: [
+      { type: 'event', eventId: 'balgath_blinded', count: 1, label: "The Foreman's eye put out" },
+    ],
+    xpReward: 900,
+    copperReward: 500,
+    itemRewards: {},
+    // The pike is granted ON ACCEPT (and re-granted on a re-accept if it was lost),
+    // which is the whole quest: the objective is proof the player used it.
+    requiredItems: ['skerrits_shardpike'],
+    minLevel: 6,
+    suggestedPlayers: 5,
+  },
+  q_prowlers: {
+    id: 'q_prowlers',
+    name: 'Teeth of the Fen',
+    giverNpcId: 'warden_fenwick',
+    turnInNpcId: 'warden_fenwick',
+    text: 'The mire prowlers have learned what a supply mule sounds like, and now they hunt the causeway itself. Last week they dragged a courier into the reeds not fifty paces from this gate. Thin them out, $N: twelve dead prowlers ought to teach the rest fear.',
+    completionText: 'Twelve, and not a bite on you? The causeway breathes easier tonight.',
+    objectives: [
+      { type: 'kill', targetMobId: 'mire_prowler', count: 12, label: 'Mire Prowler slain' },
+    ],
+    xpReward: 800,
+    copperReward: 300,
+    itemRewards: {},
+  },
+  q_prowler_pelts: {
+    id: 'q_prowler_pelts',
+    name: 'Pelts for the Causeway',
+    giverNpcId: 'provisioner_hale',
+    turnInNpcId: 'provisioner_hale',
+    text: 'Every plank of that causeway rests on pilings wrapped in oiled prowler hide, the only thing the rot will not chew through. My stock is gone and the south spans are already sinking. Bring me 8 unspoiled pelts, $N, before we are all wading to Eastbrook.',
+    completionText: 'Good thick pelts, these. The causeway will outlast the both of us now.',
+    objectives: [
+      { type: 'collect', itemId: 'mire_prowler_pelt', count: 8, label: 'Mire Prowler Pelt' },
+    ],
+    xpReward: 850,
+    copperReward: 350,
+    itemRewards: {},
+  },
+  q_fen_supplies: {
+    id: 'q_fen_supplies',
+    name: 'The Lost Caravan',
+    giverNpcId: 'provisioner_hale',
+    turnInNpcId: 'provisioner_hale',
+    text: 'A caravan out of Eastbrook went into the mist three days back and never rang the gate bell. The wreck is strewn the whole length of the causeway: crates, casks, the lot, sinking slow. Salvage 5 loads of goods before the marsh finishes the job.',
+    completionText:
+      'Waterlogged, but whole. Poor drivers... the fen keeps what it catches, $N. Remember that.',
+    objectives: [
+      { type: 'collect', itemId: 'lost_caravan_goods', count: 5, label: 'Lost Caravan Goods' },
+    ],
+    xpReward: 900,
+    copperReward: 350,
+    itemRewards: {},
+    minLevel: 7,
+  },
+  q_the_codfather: {
+    id: 'q_the_codfather',
+    name: 'The Codfather',
+    giverNpcId: 'provisioner_hale',
+    turnInNpcId: 'provisioner_hale',
+    text: "The Codfather isn't just a fish, $N, he's a cold-blooded killer. Old-timers swear he eats Mire Prowlers for breakfast, and even the Mirefen Widows won't spin their webs near the Deepfen Shallows out of sheer terror. He rules those waters, and marsh water takes an Ironreel Fishing Rod, no less; my counter sells them. Get one in hand, drag that old devil out of his waters, and I will admit you have joined the family.",
+    completionText:
+      'By the damp saints... The Codfather himself. Look at those whiskers. Fenbridge will eat stories off this catch for a year, $N.',
+    objectives: [{ type: 'collect', itemId: 'the_codfather', count: 1, label: 'The Codfather' }],
+    xpReward: 950,
+    copperReward: 450,
+    itemRewards: {},
+    minLevel: 6,
+  },
+  q_deepfen: {
+    id: 'q_deepfen',
+    name: 'The Deepfen Stirs',
+    giverNpcId: 'warden_fenwick',
+    turnInNpcId: 'warden_fenwick',
+    text: 'The Deepfen mudfins kept to their shallows for twenty years. Now they swarm the east bank like flies on a carcass, and my wardens say they are dragging things up from the lake bed. Whatever has them stirred, I want it stopped. Cull 12 of the snappers.',
+    completionText:
+      'That will push them back to the mud for a while. But something set them digging, and I mean to learn what.',
+    objectives: [
+      { type: 'kill', targetMobId: 'deepfen_murloc', count: 12, label: 'Deepfen Snapper slain' },
+    ],
+    xpReward: 1000,
+    copperReward: 400,
+    itemRewards: {},
+    minLevel: 7,
+  },
+  q_idols: {
+    id: 'q_idols',
+    name: 'Idols of the Deep',
+    giverNpcId: 'brother_aldric_fen',
+    turnInNpcId: 'brother_aldric_fen',
+    text: "Fenwick's wardens say the fish-men dredge idols from the lake bottom and clutch them like holy relics. If those idols are what I fear, I must see them with my own eyes. Take 5 from the Deepfen snappers: they will not part with them kindly.",
+    completionText:
+      'Gravecaller work, older than Morthen, older than me. The sect did not begin in Eastbrook, $N. It began here, and the lake has been keeping its secrets.',
+    objectives: [
+      { type: 'collect', itemId: 'waterlogged_idol', count: 5, label: 'Waterlogged Idol' },
+    ],
+    xpReward: 1050,
+    copperReward: 400,
+    itemRewards: {},
+    requiresQuest: 'q_deepfen',
+  },
+  q_aldrics_fallen_star: {
+    id: 'q_aldrics_fallen_star',
+    name: "Aldric's Fallen Star",
+    giverNpcId: 'brother_aldric_fen',
+    turnInNpcId: 'brother_aldric_fen',
+    text: 'I saw a rock fall out of the western sky, $N. It struck the marsh wall and burst like a forge, far beyond the widow thicket. Go west, find what survived the explosion, and bring me anything that does not belong to this world.',
+    completionText:
+      'This is no weapon I know. Look at how the plates fold. It may be a rare piece of armor, if it can be worn at all. Take it and try it on, $N, but be careful.',
+    objectives: [
+      {
+        type: 'collect',
+        itemId: 'unknown_alien_weaponry',
+        count: 1,
+        label: 'Unknown Alien Weaponry',
+      },
+    ],
+    xpReward: 900,
+    copperReward: 300,
+    itemRewards: {
+      warrior: 'alien_armor_plate',
+      mage: 'alien_armor_plate',
+      rogue: 'alien_armor_plate',
+    },
+    minLevel: 5,
+    retired: true,
+  },
+  q_deepfen_purge: {
+    id: 'q_deepfen_purge',
+    rev: 1, // objective rework (zones 1-3 dedupe): pre-rework in-flight runs reset on restore
+    name: 'Back to the Shallows',
+    giverNpcId: 'warden_fenwick',
+    turnInNpcId: 'warden_fenwick',
+    text: "Aldric says those idols are cult-make, which means the mudfins are hauling the marsh's old evil up one armful at a time, and it all funnels through their reed-huts on the shallows. I will not have it washing onto my causeway. Take this firebottle, get right up against each hut, and burn the lot. Five should break their dredging for good.",
+    completionText:
+      "Ruthless and thorough. If this marsh ever dries out, there's warden's work waiting for you.",
+    objectives: [
+      { type: 'interact', targetObjectItemId: 'murloc_hut', count: 5, label: 'Mudfin huts burned' },
+    ],
+    xpReward: 1100,
+    copperReward: 450,
+    itemRewards: {},
+    requiredItems: ['firebottle'],
+    requiresQuest: 'q_idols',
+  },
+  q_widows: {
+    id: 'q_widows',
+    name: 'Silk and Venom',
+    giverNpcId: 'herbalist_yara',
+    turnInNpcId: 'herbalist_yara',
+    text: 'Widow venom is the only thing that draws fen-rot from a wound: I bled a man of it just this morning. But the thicket west of the road has gone from nuisance to horror; the webs are taking deer whole now. Kill 10 widows and cut me 6 venom sacs, whole and unburst.',
+    completionText:
+      'Whole sacs, every one. You have steadier hands than half the surgeons in the south, $N.',
+    objectives: [
+      { type: 'kill', targetMobId: 'mire_widow', count: 10, label: 'Mirefen Widow slain' },
+      { type: 'collect', itemId: 'widow_venom_sac', count: 6, label: 'Widow Venom Sac' },
+    ],
+    xpReward: 1200,
+    copperReward: 450,
+    itemRewards: {},
+    minLevel: 8,
+  },
+  q_broodmother: {
+    id: 'q_broodmother',
+    rev: 1, // objective rework (zones 1-3 dedupe): pre-rework in-flight runs reset on restore
+    name: 'The Broodmother',
+    giverNpcId: 'herbalist_yara',
+    turnInNpcId: 'herbalist_yara',
+    text: "You have seen the webs, now ask yourself what spins cables thick as a man's wrist. The wardens call her the Broodmother, and her clutch hangs over Widow Thicket like a second canopy. Smash 8 of her eggs and put the old mother down before the rest can hatch. Mind the clutch, some eggs will not go quietly.",
+    completionText:
+      'Dead? Truly dead? Then the thicket is just trees again. The Light bless your blade, $N.',
+    objectives: [
+      { type: 'kill', targetMobId: 'spider_egg', count: 8, label: 'Broodmother eggs destroyed' },
+      {
+        type: 'kill',
+        targetMobId: 'mirefen_broodmother',
+        count: 1,
+        label: 'The Broodmother slain',
+      },
+    ],
+    xpReward: 1250,
+    copperReward: 500,
+    itemRewards: {},
+    requiresQuest: 'q_widows',
+  },
+  q_drowned: {
+    id: 'q_drowned',
+    name: 'The Drowned Dead',
+    giverNpcId: 'brother_aldric_fen',
+    turnInNpcId: 'brother_aldric_fen',
+    text: 'Travelers drowned on the causeway are walking out of the lakes, $N, still hung with the weeds they died in. This is no restless haunting. Drowning leaves no marks; it makes obedient corpses. Someone is filling this fen like a tithing box. Return 12 of the Drowned Dead to their rest.',
+    completionText:
+      'Each one you fell is a stolen soul set free. But the one who drowned them is still pouring water.',
+    objectives: [
+      { type: 'kill', targetMobId: 'drowned_dead', count: 12, label: 'Drowned Dead laid to rest' },
+    ],
+    xpReward: 1400,
+    copperReward: 500,
+    itemRewards: {},
+    minLevel: 9,
+  },
+  q_drowned_censers: {
+    id: 'q_drowned_censers',
+    name: 'Censers from the Deep',
+    giverNpcId: 'brother_aldric_fen',
+    turnInNpcId: 'brother_aldric_fen',
+    text: 'North of the widow lake stands a chapel that drowned with its congregation when the marsh rose. The dead there carry rusted censers, funerary ones, the kind swung at a Gravecaller rite. Gather 4 from the chapel yard and I will read what rite was sung over that water.',
+    completionText:
+      "As I feared. These censers burned grave-ash, not incense. Someone consecrated that chapel to the drowning, and the rite is signed 'Voss.'",
+    objectives: [{ type: 'collect', itemId: 'rusted_censer', count: 4, label: 'Rusted Censer' }],
+    xpReward: 1300,
+    copperReward: 500,
+    itemRewards: {},
+    requiresQuest: 'q_drowned',
+  },
+  q_no_rest: {
+    id: 'q_no_rest',
+    rev: 1, // objective rework (zones 1-3 dedupe): pre-rework in-flight runs reset on restore
+    name: 'No Rest in the Reeds',
+    giverNpcId: 'brother_aldric_fen',
+    turnInNpcId: 'brother_aldric_fen',
+    text: 'The rite on those censers binds the drowned to rise, and now it has raised one strong enough to lead them. The wardens call him the Drowned Warlord, and while he holds the Drowned Chapel the dead keep their ranks. Break him, $N, and the rest will scatter back into the mire.',
+    completionText:
+      'You give the dead more mercy than their masters ever did. Take this, you have more than earned it.',
+    objectives: [
+      {
+        type: 'kill',
+        targetMobId: 'drowned_warlord',
+        count: 1,
+        label: 'The Drowned Warlord slain',
+      },
+    ],
+    xpReward: 1500,
+    copperReward: 550,
+    itemRewards: {
+      warrior: 'drownedguard_breastplate',
+      mage: 'fenmist_robe',
+      rogue: 'eelskin_tunic',
+    },
+    requiresQuest: 'q_drowned_censers',
+  },
+  // --- Paladin-only Dawnbound Tome chain, final step (learn Recall the Fallen). Aldric
+  // has followed the Light into the marsh; the rite is hallowed on the drowned ground
+  // and the ability is granted on turn-in (recall_the_fallen's requiresQuest gate). ---
+  q_rite_of_redemption: {
+    id: 'q_rite_of_redemption',
+    name: 'The Rite of Recall',
+    giverNpcId: 'brother_aldric_fen',
+    turnInNpcId: 'brother_aldric_fen',
+    text: 'So you followed me into the mire, $N. Good. I have the Dawnbound Tome here, and this drowned ground is where its words belong: nowhere is the veil between life and death thinner than a place where the dead will not stay buried. But the drowned would drag your voice down mid-verse. Clear a space fit for the rite: put 8 of the Drowned Dead to rest, and we will consecrate it together.',
+    completionText:
+      'Kneel, $N, and read the words aloud. There. Do you feel it? The Light no longer only mends the living in your hands, it can summon back those who have crossed over. Use it wisely. A soul called back to a hopeless fight is a cruelty, not a mercy. Rise, Redeemer.',
+    objectives: [
+      { type: 'kill', targetMobId: 'drowned_dead', count: 8, label: 'Drowned Dead laid to rest' },
+    ],
+    xpReward: 1800,
+    copperReward: 600,
+    itemRewards: {},
+    requiredClass: ['paladin'],
+    requiresQuest: 'q_divine_tome',
+    // Same minimum as the opening step (6): once you finish the Vale step you can
+    // do the rite the moment you reach Aldric in the marsh, no extra levels waited.
+    minLevel: 6,
+  },
+  q_trolls: {
+    id: 'q_trolls',
+    name: 'Mounds of the Mirefen',
+    giverNpcId: 'warden_fenwick',
+    turnInNpcId: 'warden_fenwick',
+    text: 'The Mirefen trolls have torn open the old barrow-mounds east of the far lake: burial mounds, $N, older than any kingdom of men. Whatever gold they think is down there, what they are letting OUT is worse. Drive them off the mounds: 12 trolls dead ought to do it.',
+    completionText:
+      "Trolls don't dig without a reason. Someone told them where to dig, and I'd wager my gate it wears a grey robe.",
+    objectives: [
+      { type: 'kill', targetMobId: 'fen_troll', count: 12, label: 'Mirefen Troll slain' },
+    ],
+    xpReward: 1600,
+    copperReward: 600,
+    itemRewards: {},
+    minLevel: 10,
+  },
+  q_troll_fetishes: {
+    id: 'q_troll_fetishes',
+    name: 'Fetish and Bone',
+    giverNpcId: 'scout_maren',
+    turnInNpcId: 'scout_maren',
+    text: 'I crawled the troll mounds two nights past. Those fetishes they plant are not troll-craft: the knots are wrong, the bones are man-bones, and every one points at the open barrows like a signpost. Bring me 8 of them and I will prove to Fenwick who is really paying for this dig.',
+    completionText:
+      'Same maker as the banners in the cult camp. The trolls are hired shovels, nothing more. Good work, $N.',
+    objectives: [
+      { type: 'collect', itemId: 'troll_fetish', count: 8, label: 'Mirefen Troll Fetish' },
+    ],
+    xpReward: 1650,
+    copperReward: 600,
+    itemRewards: {
+      warrior: 'trollhide_leggings',
+      mage: 'trollhide_leggings',
+      rogue: 'trollhide_leggings',
+    },
+    requiresQuest: 'q_trolls',
+  },
+  q_grubjaw: {
+    id: 'q_grubjaw',
+    name: 'The Glutton',
+    giverNpcId: 'provisioner_hale',
+    turnInNpcId: 'provisioner_hale',
+    text: "There's one troll the others won't dig beside: Grubjaw, the Glutton. He ate my last two pack-mules, harness and all, and my insurance man drowned years ago. He prowls the far eastern mounds, $N. Bring me his tusk and I will outfit you proper.",
+    completionText:
+      'That tusk is long as my forearm! The mules are avenged, and Fenbridge owes you a round.',
+    objectives: [{ type: 'collect', itemId: 'grubjaw_tusk', count: 1, label: "Grubjaw's Tusk" }],
+    xpReward: 1700,
+    copperReward: 700,
+    itemRewards: {
+      warrior: 'marshstrider_boots',
+      mage: 'marshstrider_boots',
+      rogue: 'marshstrider_boots',
+    },
+    minLevel: 11,
+  },
+  q_cult_camp: {
+    id: 'q_cult_camp',
+    name: 'Robes in the Reeds',
+    giverNpcId: 'scout_maren',
+    turnInNpcId: 'scout_maren',
+    text: 'There, north past the third lake, where the mist never lifts. Grey robes, grey banners: Gravecallers, camped in the open like they already own the fen. They have stopped hiding, $N, which means they think they have already won. Prove them wrong. Cut down 12 of their cultists.',
+    completionText: 'Twelve robes face-down in the mud. Now they know the fen watches back.',
+    objectives: [
+      {
+        type: 'kill',
+        targetMobId: 'gravecaller_cultist',
+        count: 12,
+        label: 'Gravecaller Cultist slain',
+      },
+    ],
+    xpReward: 1800,
+    copperReward: 700,
+    itemRewards: {},
+    minLevel: 11,
+  },
+  q_summoners: {
+    id: 'q_summoners',
+    name: 'Stopping the Summoning',
+    giverNpcId: 'brother_aldric_fen',
+    turnInNpcId: 'brother_aldric_fen',
+    text: "Maren's reports name summoners among the cultists, voices that call the drowned up out of the water like hounds to a whistle. Their ciphers will spell out the chain of command. Silence 8 summoners and bring me 4 of their ciphers.",
+    completionText:
+      "Every cipher is countersigned 'Deacon Voss', and addressed onward to a 'Fogbinder' in the Bastion. Morthen's master, $N. We have found him.",
+    objectives: [
+      {
+        type: 'kill',
+        targetMobId: 'gravecaller_summoner',
+        count: 8,
+        label: 'Gravecaller Summoner slain',
+      },
+      { type: 'collect', itemId: 'cult_cipher', count: 4, label: 'Gravecaller Cipher' },
+    ],
+    xpReward: 1900,
+    copperReward: 750,
+    itemRewards: {},
+    requiresQuest: 'q_cult_camp',
+  },
+  q_deacon: {
+    id: 'q_deacon',
+    name: 'The Deacon of the Mire',
+    giverNpcId: 'warden_fenwick',
+    turnInNpcId: 'warden_fenwick',
+    text: 'So a deacon of the Gravecallers stands at the heart of that camp, singing my drowned wardens up out of the lakes to serve him. His hymn ends today. Take the camp road north, $N, and put Deacon Voss in the ground, deep enough that nobody sings HIM back up.',
+    completionText:
+      'Voss is dead and the mist over the camp is already thinning. You have broken their voice in the fen. Now only the Bastion remains.',
+    objectives: [
+      { type: 'kill', targetMobId: 'deacon_voss', count: 1, label: 'Deacon Voss slain' },
+    ],
+    xpReward: 2200,
+    copperReward: 1000,
+    itemRewards: {
+      warrior: 'deacons_cleaver',
+      mage: 'staff_of_drowned_prayers',
+      rogue: 'mistbinder_kris',
+      // Druid-specific override: the feral 2H ladder rung instead of the
+      // mage-archetype caster staff (questRewardItem checks the class first).
+      druid: 'fenshadow_maul',
+    },
+    requiresQuest: 'q_summoners',
+  },
+  q_bastion_door: {
+    id: 'q_bastion_door',
+    name: 'The Sunken Bastion',
+    giverNpcId: 'brother_aldric_fen',
+    turnInNpcId: 'brother_aldric_fen',
+    text: "The Sunken Bastion, a knight's hold that drowned in the fen a century ago, is where Voss's letters point, and where this Fogbinder sings his drowning hymns. The cult has warded its door with grave-stones. Bring me one of the ward stones, $N, and I will unweave the seal.",
+    completionText:
+      'The ward parts like rotten rope. The door stands open... and the dark below it is listening.',
+    objectives: [
+      { type: 'collect', itemId: 'bastion_ward_stone', count: 1, label: 'Bastion Ward Stone' },
+    ],
+    xpReward: 1200,
+    copperReward: 500,
+    itemRewards: { warrior: 'bastion_kite_shield' },
+    requiresQuest: 'q_deacon',
+    minLevel: 12,
+  },
+  q_olen: {
+    id: 'q_olen',
+    name: "The Knight-Commander's Shame",
+    giverNpcId: 'scout_maren',
+    turnInNpcId: 'scout_maren',
+    text: 'Knight-Commander Olen held the Bastion when it sank, drowned at his post rather than abandon it. Every warden learns his name with pride. Now the Fogbinder has raised him as a puppet to guard the very door he died defending. That shame ends, $N. Take four companions below and grant Olen the rest he earned.',
+    completionText:
+      "Then his watch is finally over. I'll see his name cut into the gate myself. Thank you, $N.",
+    objectives: [
+      {
+        type: 'kill',
+        targetMobId: 'knight_commander_olen',
+        count: 1,
+        label: 'Knight-Commander Olen laid to rest',
+      },
+    ],
+    xpReward: 1800,
+    copperReward: 800,
+    itemRewards: {
+      warrior: 'knight_commanders_greaves',
+      mage: 'knight_commanders_greaves',
+      rogue: 'knight_commanders_greaves',
+    },
+    requiresQuest: 'q_bastion_door',
+    minLevel: 12,
+    suggestedPlayers: 5,
+  },
+  q_mistcaller: {
+    id: 'q_mistcaller',
+    name: 'The Fogbinder',
+    giverNpcId: 'brother_aldric_fen',
+    turnInNpcId: 'brother_aldric_fen',
+    text: "At the bottom of the Bastion waits Vael the Fogbinder, Morthen's master, Voss's master, the voice that has drowned a hundred travelers to raise itself an army. He is far beyond any one hero: take four companions, no fewer. End him, $N, and the fen's dead may finally lie still.",
+    completionText:
+      "Vael is dead, and the mist is lifting for the first time in years. But Maren heard his last words, and they freeze my blood: 'The Wyrm stirs beneath the peaks.' The sect serves something older than we ever guessed, $N. Rest while you can: the mountains are next.",
+    objectives: [
+      {
+        type: 'kill',
+        targetMobId: 'vael_the_mistcaller',
+        count: 1,
+        label: 'Vael the Fogbinder slain',
+      },
+    ],
+    xpReward: 2800,
+    copperReward: 2500,
+    itemRewards: { warrior: 'mistcallers_edge', mage: 'vaels_mist_staff', rogue: 'riptide_dirk' },
+    requiresQuest: 'q_bastion_door',
+    minLevel: 12,
+    suggestedPlayers: 5,
+  },
+  // Repeatable craft work order (Professions 2.0): Tanner Hesk takes
+  // rough hides for coin on the shared cadence (WORK_ORDER_CADENCE_TICKS); the
+  // collect turn-in consumes them. copperReward is floor(0.5 * summed sell value
+  // of the requested hides); xpReward matches the make-amends repeatable band.
+  q_prof_workorder_tannery: {
+    id: 'q_prof_workorder_tannery',
+    name: 'Tannery Work Order',
+    giverNpcId: 'tanner_hesk',
+    turnInNpcId: 'tanner_hesk',
+    text: 'Vats are empty. Bring eight rough hides. Coin when you do.',
+    completionText: 'Good hides. Fair pay. Again when you have more.',
+    objectives: [
+      { type: 'collect', itemId: 'rough_hide', count: 8, label: 'Rough Hide delivered' },
+    ],
+    xpReward: 100,
+    // floor(0.5 * 8 * 5) = 20 (rough_hide sellValue 5).
+    copperReward: 20,
+    itemRewards: {},
+    repeatable: true,
+    shareable: false,
+    repeatCadenceTicks: WORK_ORDER_CADENCE_TICKS,
+  },
+};
+
+export const ZONE2_QUEST_ORDER = [
+  'q_fenbridge_muster',
+  ...MUSTER_QUEST_ORDER,
+  'q_socketwrights_due',
+  'q_prowlers',
+  'q_prowler_pelts',
+  'q_fen_supplies',
+  'q_the_codfather',
+  'q_deepfen',
+  'q_idols',
+  'q_aldrics_fallen_star',
+  'q_deepfen_purge',
+  'q_widows',
+  'q_broodmother',
+  'q_drowned',
+  'q_drowned_censers',
+  'q_no_rest',
+  'q_rite_of_redemption',
+  'q_trolls',
+  'q_troll_fetishes',
+  'q_grubjaw',
+  'q_cult_camp',
+  'q_summoners',
+  'q_deacon',
+  'q_bastion_door',
+  'q_olen',
+  'q_mistcaller',
+  'q_prof_workorder_tannery',
+];
+
+// ---------------------------------------------------------------------------
+// World layout. Fenbridge sits at (0,300); +z north (deeper fen), +x west
+// (east is -x — see the zone1 layout note).
+// ---------------------------------------------------------------------------
+
+export const ZONE2_CAMPS: CampDef[] = [
+  // Prowlers: reed beds flanking the causeway south of town
+  { mobId: 'mire_prowler', center: { x: -40, z: 230 }, radius: 22, count: 7 },
+  { mobId: 'mire_prowler', center: { x: 35, z: 225 }, radius: 20, count: 6 },
+  // Murlocs: shores of the big east lake — camps straddle the waterline
+  { mobId: 'deepfen_murloc', center: { x: -82, z: 273 }, radius: 15, count: 8 },
+  { mobId: 'deepfen_murloc', center: { x: -120, z: 350 }, radius: 13, count: 6 },
+
+  { mobId: 'mirejaw_the_ravenous', center: { x: -132, z: 333 }, radius: 5, count: 1 },
+  // Widows: thicket west of Fenbridge
+  { mobId: 'mire_widow', center: { x: 70, z: 300 }, radius: 20, count: 7 },
+  { mobId: 'mire_widow', center: { x: 95, z: 340 }, radius: 16, count: 6 },
+  { mobId: 'mirefen_broodmother', center: { x: 98, z: 348 }, radius: 3, count: 1 },
+  // The Broodmother's clutch: quest-gated eggs spread across Widow Thicket,
+  // interleaved with the widow packs (q_broodmother).
+  { mobId: 'spider_egg', center: { x: 70, z: 300 }, radius: 20, count: 7 },
+  { mobId: 'spider_egg', center: { x: 95, z: 340 }, radius: 16, count: 6 },
+  // Drowned dead: the Drowned Chapel and the shallows beyond
+  { mobId: 'drowned_dead', center: { x: 90, z: 420 }, radius: 20, count: 8 },
+  { mobId: 'drowned_dead', center: { x: 115, z: 450 }, radius: 16, count: 6 },
+  { mobId: 'sloomtooth_the_drowned', center: { x: 118, z: 455 }, radius: 5, count: 1 },
+  // Quest capstone: an elite Drowned Warlord risen at the Drowned Chapel (q_no_rest)
+  { mobId: 'drowned_warlord', center: { x: 98, z: 432 }, radius: 3, count: 1 },
+  // Trolls: barrow-mounds in the southeast
+  { mobId: 'fen_troll', center: { x: -80, z: 420 }, radius: 22, count: 7 },
+  { mobId: 'fen_troll', center: { x: -105, z: 455 }, radius: 18, count: 6 },
+  { mobId: 'grubjaw', center: { x: -120, z: 480 }, radius: 8, count: 1 },
+  // Gravecaller encampment: deep fen, before the Bastion
+  { mobId: 'gravecaller_cultist', center: { x: 15, z: 470 }, radius: 20, count: 7 },
+  { mobId: 'gravecaller_cultist', center: { x: -25, z: 490 }, radius: 16, count: 6 },
+  { mobId: 'gravecaller_summoner', center: { x: -5, z: 500 }, radius: 12, count: 4 },
+  { mobId: 'gravecaller_mender', center: { x: 18, z: 472 }, radius: 8, count: 2 },
+  { mobId: 'sister_nhalia', center: { x: 24, z: 492 }, radius: 5, count: 1 },
+  { mobId: 'deacon_voss', center: { x: 0, z: 510 }, radius: 2, count: 1 },
+  // Bog Bloats: volatile gas-bags drifting the dry eastern shelf of the marsh.
+  // Listed last so their spawn draws never perturb the other camps' placement.
+  { mobId: 'bog_bloat', center: { x: 72, z: 428 }, radius: 11, count: 5 },
+  { mobId: 'bog_bloat', center: { x: 110, z: 440 }, radius: 11, count: 4 },
+];
+
+export const ZONE2_OBJECTS: GroundObjectDef[] = [
+  {
+    // Murloc huts torched with a firebottle for "Back to the Shallows"
+    // (q_deepfen_purge); positions match the mud-hut props at the shallows.
+    itemId: 'murloc_hut',
+    name: 'Mudfin Hut',
+    positions: [
+      { x: -78, z: 269 },
+      { x: -83, z: 266 },
+      { x: -74, z: 275 },
+      { x: -117, z: 346 },
+      { x: -123, z: 354 },
+    ],
+  },
+  {
+    itemId: 'fen_muster_order',
+    name: 'Fenbridge Muster Order',
+    positions: FENBRIDGE_LAYOUT.repeated.musterOrders.map((order) => ({ ...order.position })),
+  },
+  {
+    itemId: 'lost_caravan_goods',
+    name: 'Lost Caravan Goods',
+    positions: [
+      { x: 1, z: 192 },
+      { x: -3, z: 206 },
+      { x: -6, z: 221 },
+      { x: -8, z: 237 },
+      { x: -7, z: 252 },
+      { x: -3, z: 268 },
+      { x: 2, z: 283 },
+    ],
+  },
+  {
+    itemId: 'rusted_censer',
+    name: 'Rusted Censer',
+    positions: [
+      { x: 96, z: 429 },
+      { x: 103, z: 430 },
+      { x: 99, z: 434 },
+      { x: 106, z: 437 },
+      { x: 97, z: 440 },
+      { x: 104, z: 441 },
+    ],
+  },
+  {
+    itemId: 'bastion_ward_stone',
+    name: 'Bastion Ward Stone',
+    positions: [
+      { x: 43, z: 512 },
+      { x: 48, z: 517 },
+    ],
+  },
+  {
+    itemId: 'unknown_alien_weaponry',
+    name: 'Smoldering Meteor Debris',
+    positions: [{ x: 151.8, z: 294.2 }],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Items
+// ---------------------------------------------------------------------------
+
+// Archetype groups for class-locked rewards (REWARD_ARCHETYPE hands warrior
+// rewards to paladins/shamans etc., so the lock must admit the whole group).
+const WAR: PlayerClass[] = ['warrior', 'paladin', 'shaman'];
+const MAG: PlayerClass[] = ['mage', 'priest', 'warlock', 'druid'];
+const ROG: PlayerClass[] = ['rogue', 'hunter'];
+const CASTER_WEAPON_CLASSES: PlayerClass[] = [
+  'mage',
+  'priest',
+  'warlock',
+  'shaman',
+  'paladin',
+  'druid',
+];
+
+export const ZONE2_ITEMS: Record<string, ItemDef> = {
+  // ---- Balgath, the Mirefen world boss: his own spoils --------------------
+  //
+  // A world boss needs loot that is HIS. Sharing another boss's tier looks like a
+  // shortcut and behaves like one: an item's level derives from its highest source, so
+  // handing him the zone's level-10 gear silently re-levels it, and handing him
+  // Thunzharr's tier-20 set means four class-set Reliquary pages have to start naming a
+  // Mirefen boss. One epic per archetype plus a trinket, so any group that kills him has
+  // someone who wants a drop, and the drop is unambiguously from this fight.
+  //
+  // Stat totals are NOT chosen. An item's level derives from its highest source (a
+  // level-20 boss), and tests/item_level.test.ts then enforces an exact primary-stat
+  // LINE for that level and slot: 23 on the two-hander, 14 on the shoulders, 12 on the
+  // neck and the boots. On top of that line every budgeted item carries a free stamina
+  // baseline of a third of it (item_budget.ts): a physical piece holds that stamina
+  // INSIDE its line, so the three of those below total their line exactly, while a
+  // caster piece carries it on top, so the neck's 12-point int/spi line totals 16. The
+  // split between stats is the design decision; the total is arithmetic, and inventing a
+  // bigger one just fails the gate.
+  foremans_barrowmaul: {
+    id: 'foremans_barrowmaul',
+    name: "Foreman's Barrowmaul",
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'epic',
+    hand: 'twohand',
+    weapon: { min: 46, max: 67, speed: 3.4 },
+    stats: { str: 14, sta: 9 },
+    sellValue: 9200,
+    requiredClass: WAR,
+  },
+  // Display name The Barrowglass Eye since the originality audit: the old coined token
+  // (Loom-shard) belongs to another game (tests/originality_renames.test.ts). Id frozen.
+  loomshard_eye: {
+    id: 'loomshard_eye',
+    name: 'The Barrowglass Eye',
+    kind: 'armor',
+    slot: 'neck',
+    quality: 'epic',
+    stats: { int: 7, spi: 5, sta: 4 },
+    sellValue: 8400,
+  },
+  // The caster's spoil: a staff at his item level, on the ilvl-26 epic two-hander line
+  // the Wildheart Hexwood Staff carries (int + spi on the line, the stamina baseline on
+  // top, the same 40 to 60 at 3.0). No flat Spell Power: that is priced per tier
+  // (item_budget.ts casterLaneSpTotal), and none of his other spoils carries a free affix.
+  craterglass_stave: {
+    id: 'craterglass_stave',
+    name: 'Craterglass Stave',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'epic',
+    hand: 'twohand',
+    weapon: { min: 40, max: 60, speed: 3.0 },
+    stats: { int: 14, spi: 9, sta: 8 },
+    sellValue: 9000,
+    requiredClass: ['mage', 'priest', 'warlock', 'shaman', 'paladin', 'druid'],
+  },
+  barrowhide_pauldrons: {
+    id: 'barrowhide_pauldrons',
+    name: 'Barrowhide Pauldrons',
+    kind: 'armor',
+    slot: 'shoulder',
+    armorType: 'mail',
+    quality: 'epic',
+    stats: { armor: 148, sta: 8, str: 6 },
+    sellValue: 8800,
+  },
+  mirestone_stride: {
+    id: 'mirestone_stride',
+    name: 'Mirestone Stride',
+    kind: 'armor',
+    slot: 'feet',
+    armorType: 'leather',
+    quality: 'epic',
+    stats: { armor: 96, agi: 7, sta: 5 },
+    sellValue: 8600,
+  },
+  // The Foreman's Wage: the LOCALS' share of the world boss, three level-13 rares.
+  //
+  // These drop only to a contributor at or below level 13 (LootEntry.maxPlayerLevel on
+  // his table), and that gate is also their level: item_level.ts derives a level-gated
+  // personal entry from the gate rather than from the level-20 boss, so they budget as
+  // ilvl 16 rares (13 + 3), the zone's own tier and a real upgrade until twenty, instead
+  // of re-levelling to boss loot a level eight could never wear. Budgets are exact to
+  // primaryStatBudget (ring 5, neck 6, gloves 6) so the level-band budget sweep stays
+  // honest. Those are LINES, and the stamina baseline model (item_budget.ts) puts a free
+  // third on top of each: the two physical pieces hold theirs inside the line and total
+  // it exactly, and the caster locket carries a 2-point baseline above its 6-point line
+  // for a total of 8, of which it spends 2 line points buying 2 stamina over the
+  // baseline (STAMINA_PREMIUM, one for one) to keep the even int/stamina identity it was
+  // authored with. The armor follows the epic set's per-ilvl line (leather gloves 110 at
+  // ilvl 26). Jewelry for two of the three because it is class-agnostic and, in the
+  // classic era, nearly absent before level twenty: a level-ten neck is a real event.
+  //
+  // `requiredLevel: 11` is the classic blue rule (item level minus five) written down
+  // explicitly, because a rare otherwise gates at its SOURCE level (13) and half the zone
+  // would carry the reward around unable to wear it; item_level_req.ts sanctions the
+  // override for exactly this.
+  foremans_wage_band: {
+    id: 'foremans_wage_band',
+    name: "Foreman's Wage Band",
+    kind: 'armor',
+    slot: 'ring',
+    quality: 'rare',
+    stats: { sta: 3, str: 2 },
+    requiredLevel: 11,
+    sellValue: 1150,
+  },
+  mirelight_locket: {
+    id: 'mirelight_locket',
+    name: 'Mirelight Locket',
+    kind: 'armor',
+    slot: 'neck',
+    quality: 'rare',
+    stats: { int: 4, sta: 4 },
+    requiredLevel: 11,
+    sellValue: 1200,
+  },
+  fenwright_grips: {
+    id: 'fenwright_grips',
+    name: 'Fenwright Grips',
+    kind: 'armor',
+    slot: 'gloves',
+    armorType: 'leather',
+    quality: 'rare',
+    stats: { armor: 68, agi: 3, sta: 3 },
+    requiredLevel: 11,
+    sellValue: 1250,
+  },
+
+  // --- quest items ---
+  skerrits_shardpike: {
+    id: 'skerrits_shardpike',
+    name: "Skerrit's Shardpike",
+    kind: 'weapon',
+    slot: 'mainhand',
+    hand: 'twohand',
+    quality: 'rare',
+    // Deliberately worthless as a WEAPON: swinging it is not the point (lance_trial.ts
+    // does fixed damage through its own verb), and a pike with real stats would be a
+    // free rare for every level 6 who talks to Skerrit once.
+    weapon: { min: 1, max: 2, speed: 3.4 },
+    // Explicitly ungated, the override item_level_req.ts sanctions. Rare quality with no
+    // derivable drop source falls back to the rare band (level 12), which silently locked
+    // this out for exactly the players the trial exists for: its quest is minLevel 6, and
+    // the whole point of the fixed-damage thrust is that a level 6 opens the window a
+    // level 20 spends. The colour is flavour, not power; the weapon rolls 1 to 2.
+    requiredLevel: 1,
+    questTool: true,
+    sellValue: 0,
+    noVendorSell: true,
+    noMarketList: true,
+    noDiscard: true,
+    // Skerrit re-grants a missing pike whenever the quest is active (requiredItems,
+    // regrantMissingQuestItems), so a rare that broke down would mint salvage and
+    // disenchant materials forever: break it, talk to him, break the new one.
+    noSalvage: true,
+    questId: 'q_socketwrights_due',
+  },
+  // The muster's own issue of the same pike, lent from the weapon rack at the command camp
+  // below the Starfall Crater (src/sim/muster_pike.ts). Anyone, any level, no quest: the
+  // trial is the one thing a level 6 can do at a level 20 pull, so its door must not be a
+  // quest chain. LENT, never owned: it is reclaimed when the pull ends, when its bearer
+  // leaves the muster's reach, dies or logs out, and the weapons it displaced are put back
+  // in their hands. Soulbound + lentGear close every other exit (trade, mail, market,
+  // vendor, bank, guild bank), so it can never leave the fen with anyone.
+  muster_shardpike: {
+    id: 'muster_shardpike',
+    name: 'Muster Shardpike',
+    kind: 'weapon',
+    slot: 'mainhand',
+    hand: 'twohand',
+    quality: 'uncommon',
+    weapon: { min: 1, max: 2, speed: 3.4 },
+    requiredLevel: 1,
+    questTool: true,
+    lentGear: true,
+    soulbound: true,
+    sellValue: 0,
+    noVendorSell: true,
+    noMarketList: true,
+    noDiscard: true,
+  },
+  fen_muster_order: {
+    id: 'fen_muster_order',
+    name: 'Fenbridge Muster Order',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_fenbridge_muster',
+  },
+  mire_prowler_pelt: {
+    id: 'mire_prowler_pelt',
+    name: 'Mire Prowler Pelt',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_prowler_pelts',
+  },
+  lost_caravan_goods: {
+    id: 'lost_caravan_goods',
+    name: 'Lost Caravan Goods',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_fen_supplies',
+  },
+  the_codfather: {
+    id: 'the_codfather',
+    name: 'The Codfather',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_the_codfather',
+  },
+  waterlogged_idol: {
+    id: 'waterlogged_idol',
+    name: 'Waterlogged Idol',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_idols',
+  },
+  widow_venom_sac: {
+    id: 'widow_venom_sac',
+    name: 'Widow Venom Sac',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_widows',
+  },
+  rusted_censer: {
+    id: 'rusted_censer',
+    name: 'Rusted Censer',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_drowned_censers',
+  },
+  troll_fetish: {
+    id: 'troll_fetish',
+    name: 'Mirefen Troll Fetish',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_troll_fetishes',
+  },
+  grubjaw_tusk: {
+    id: 'grubjaw_tusk',
+    name: "Grubjaw's Tusk",
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_grubjaw',
+  },
+  cult_cipher: {
+    id: 'cult_cipher',
+    name: 'Gravecaller Cipher',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_summoners',
+  },
+  bastion_ward_stone: {
+    id: 'bastion_ward_stone',
+    name: 'Bastion Ward Stone',
+    kind: 'quest',
+    sellValue: 0,
+    questId: 'q_bastion_door',
+  },
+  unknown_alien_weaponry: {
+    id: 'unknown_alien_weaponry',
+    name: 'Unknown Alien Weaponry',
+    kind: 'quest',
+    quality: 'rare',
+    sellValue: 0,
+    questId: 'q_aldrics_fallen_star',
+  },
+  // --- quest reward gear (uncommon) ---
+  alien_armor_plate: {
+    id: 'alien_armor_plate',
+    name: 'Alien Armor Plate',
+    kind: 'tool',
+    quality: 'rare',
+    use: { type: 'skinSelect', catalog: 'mech' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  amber_crimson_armor_plate: {
+    id: 'amber_crimson_armor_plate',
+    name: 'Amber Crimson',
+    kind: 'tool',
+    quality: 'uncommon',
+    use: { type: 'mechChroma', chromaId: 'amber_crimson' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  crimson_amber_armor_plate: {
+    id: 'crimson_amber_armor_plate',
+    name: 'Crimson Amber',
+    kind: 'tool',
+    quality: 'uncommon',
+    use: { type: 'mechChroma', chromaId: 'crimson_amber' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  cyan_magenta_armor_plate: {
+    id: 'cyan_magenta_armor_plate',
+    name: 'Cyan Magenta',
+    kind: 'tool',
+    quality: 'uncommon',
+    use: { type: 'mechChroma', chromaId: 'cyan_magenta' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  magenta_cyan_armor_plate: {
+    id: 'magenta_cyan_armor_plate',
+    name: 'Magenta Cyan',
+    kind: 'tool',
+    quality: 'uncommon',
+    use: { type: 'mechChroma', chromaId: 'magenta_cyan' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  orange_steel_armor_plate: {
+    id: 'orange_steel_armor_plate',
+    name: 'Orange Steel',
+    kind: 'tool',
+    quality: 'uncommon',
+    use: { type: 'mechChroma', chromaId: 'orange_steel' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  steel_orange_armor_plate: {
+    id: 'steel_orange_armor_plate',
+    name: 'Steel Orange',
+    kind: 'tool',
+    quality: 'uncommon',
+    use: { type: 'mechChroma', chromaId: 'steel_orange' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  forest_pink_armor_plate: {
+    id: 'forest_pink_armor_plate',
+    name: 'Forest Pink',
+    kind: 'tool',
+    quality: 'uncommon',
+    use: { type: 'mechChroma', chromaId: 'forest_pink' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  pink_forest_armor_plate: {
+    id: 'pink_forest_armor_plate',
+    name: 'Pink Forest',
+    kind: 'tool',
+    quality: 'uncommon',
+    use: { type: 'mechChroma', chromaId: 'pink_forest' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  amethyst_silver_armor_plate: {
+    id: 'amethyst_silver_armor_plate',
+    name: 'Amethyst Silver',
+    kind: 'tool',
+    quality: 'rare',
+    use: { type: 'mechChroma', chromaId: 'amethyst_silver' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  ivory_copper_armor_plate: {
+    id: 'ivory_copper_armor_plate',
+    name: 'Ivory Copper',
+    kind: 'tool',
+    quality: 'rare',
+    use: { type: 'mechChroma', chromaId: 'ivory_copper' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  onyx_gold_armor_plate: {
+    id: 'onyx_gold_armor_plate',
+    name: 'Onyx Gold',
+    kind: 'tool',
+    quality: 'rare',
+    use: { type: 'mechChroma', chromaId: 'onyx_gold' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  imperial_crimson_armor_plate: {
+    id: 'imperial_crimson_armor_plate',
+    name: 'Imperial Crimson',
+    kind: 'tool',
+    quality: 'epic',
+    use: { type: 'mechChroma', chromaId: 'imperial_crimson' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  imperial_gold_armor_plate: {
+    id: 'imperial_gold_armor_plate',
+    name: 'Imperial Gold',
+    kind: 'tool',
+    quality: 'epic',
+    use: { type: 'mechChroma', chromaId: 'imperial_gold' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  vanguard_azure_armor_plate: {
+    id: 'vanguard_azure_armor_plate',
+    name: 'Vanguard Azure',
+    kind: 'tool',
+    quality: 'epic',
+    use: { type: 'mechChroma', chromaId: 'vanguard_azure' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  vanguard_chrome_armor_plate: {
+    id: 'vanguard_chrome_armor_plate',
+    name: 'Vanguard Chrome',
+    kind: 'tool',
+    quality: 'epic',
+    use: { type: 'mechChroma', chromaId: 'vanguard_chrome' },
+    sellValue: 0,
+    noVendorSell: true,
+    noDiscard: true,
+    noMarketList: true,
+  },
+  deacons_cleaver: {
+    id: 'deacons_cleaver',
+    name: "Deacon's Cleaver",
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'uncommon',
+    weapon: { min: 11, max: 18, speed: 2.4 },
+    stats: { str: 4, sta: 2 },
+    sellValue: 300,
+    requiredClass: WAR,
+  },
+  staff_of_drowned_prayers: {
+    id: 'staff_of_drowned_prayers',
+    name: 'Staff of Drowned Prayers',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'uncommon',
+    weapon: { min: 12, max: 20, speed: 3.0 },
+    stats: { int: 5, spi: 2, sta: 2 },
+    sellValue: 300,
+    requiredClass: CASTER_WEAPON_CLASSES,
+  },
+  mistbinder_kris: {
+    id: 'mistbinder_kris',
+    name: 'Mistbinder Kris',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'uncommon',
+    weapon: { min: 7, max: 12, speed: 1.7, dagger: true },
+    stats: { agi: 4, sta: 2 },
+    sellValue: 300,
+    requiredClass: ROG,
+  },
+  drownedguard_breastplate: {
+    id: 'drownedguard_breastplate',
+    name: 'Drownedguard Breastplate',
+    kind: 'armor',
+    armorType: 'mail',
+    slot: 'chest',
+    quality: 'uncommon',
+    stats: { armor: 130, sta: 4 },
+    sellValue: 350,
+    requiredClass: WAR,
+  },
+  // Collectible mount (Vael the Fogbinder, The Sunken Bastion). Not soulbound;
+  // owning the reins item is owning the mount (src/sim/mounts.ts mountOwned),
+  // and the item transfers like any other.
+  reins_stalkglider_snail: {
+    id: 'reins_stalkglider_snail',
+    name: 'Reins of the Moss-Shell Stalk-Glider',
+    kind: 'mount',
+    mount: 'stalkglider_snail',
+    quality: 'rare',
+    noVendorSell: true,
+    noDiscard: true,
+    sellValue: 0,
+  },
+  fenmist_robe: {
+    id: 'fenmist_robe',
+    name: 'Fenmist Robe',
+    kind: 'armor',
+    armorType: 'cloth',
+    slot: 'chest',
+    quality: 'uncommon',
+    stats: { armor: 45, int: 5, spi: 3, sta: 2 },
+    sellValue: 350,
+    requiredClass: MAG,
+  },
+  eelskin_tunic: {
+    id: 'eelskin_tunic',
+    name: 'Eelskin Tunic',
+    kind: 'armor',
+    armorType: 'leather',
+    slot: 'chest',
+    quality: 'uncommon',
+    stats: { armor: 80, agi: 3, sta: 2 },
+    sellValue: 350,
+    requiredClass: ROG,
+  },
+  trollhide_leggings: {
+    id: 'trollhide_leggings',
+    name: 'Trollhide Leggings',
+    kind: 'armor',
+    armorType: 'cloth',
+    slot: 'legs',
+    quality: 'uncommon',
+    stats: { armor: 55, sta: 3, str: 2 },
+    sellValue: 280,
+  },
+  marshstrider_boots: {
+    id: 'marshstrider_boots',
+    name: 'Marshstrider Boots',
+    kind: 'armor',
+    armorType: 'cloth',
+    slot: 'feet',
+    quality: 'uncommon',
+    stats: { armor: 40, agi: 2, sta: 2 },
+    sellValue: 250,
+  },
+  broodmother_silk_robe: {
+    id: 'broodmother_silk_robe',
+    name: "Broodmother's Silk Robe",
+    kind: 'armor',
+    armorType: 'cloth',
+    slot: 'chest',
+    quality: 'uncommon',
+    stats: { armor: 42, int: 4, spi: 2, sta: 1 },
+    sellValue: 300,
+    requiredClass: MAG,
+  },
+  voss_sanctified_mace: {
+    id: 'voss_sanctified_mace',
+    name: "Voss's Sanctified Mace",
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'uncommon',
+    weapon: { min: 12, max: 20, speed: 2.6 },
+    stats: { int: 3, spi: 2, sta: 2 },
+    sellValue: 420,
+    requiredClass: MAG,
+  },
+  mirejaw_biteblade: {
+    id: 'mirejaw_biteblade',
+    name: 'Mirejaw Biteblade',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'uncommon',
+    weapon: { min: 8, max: 14, speed: 1.7, dagger: true },
+    stats: { agi: 5, sta: 2 },
+    sellValue: 480,
+    requiredClass: ROG,
+  },
+  mirejaw_scale_vest: {
+    id: 'mirejaw_scale_vest',
+    name: 'Mirejaw Scale Vest',
+    kind: 'armor',
+    armorType: 'mail',
+    slot: 'chest',
+    quality: 'uncommon',
+    stats: { armor: 115, str: 2, sta: 3 },
+    sellValue: 480,
+    requiredClass: WAR,
+  },
+  // --- Sloomtooth the Drowned chase drops (rare) ---
+  tidereaver_gaff: {
+    id: 'tidereaver_gaff',
+    name: 'Tidereaver Gaff',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'rare',
+    weapon: { min: 17, max: 28, speed: 2.5 },
+    stats: { str: 5, sta: 4 },
+    sellValue: 1400,
+    requiredClass: WAR,
+  },
+  sloomtooth_tidefang: {
+    id: 'sloomtooth_tidefang',
+    name: "Sloomtooth's Tidefang",
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'rare',
+    weapon: { min: 10, max: 17, speed: 1.7, dagger: true },
+    stats: { agi: 6, sta: 3 },
+    sellValue: 1400,
+    requiredClass: ROG,
+  },
+  drowned_tide_scepter: {
+    id: 'drowned_tide_scepter',
+    name: 'Drowned Tide Scepter',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'rare',
+    weapon: { min: 16, max: 28, speed: 3.0 },
+    stats: { int: 6, spi: 3, sta: 3 },
+    sellValue: 1400,
+    requiredClass: MAG,
+  },
+  nhalias_funeral_wraps: {
+    id: 'nhalias_funeral_wraps',
+    name: "Nhalia's Funeral Wraps",
+    kind: 'armor',
+    armorType: 'cloth',
+    slot: 'legs',
+    quality: 'uncommon',
+    stats: { armor: 48, int: 5, spi: 2, sta: 2 },
+    sellValue: 480,
+    requiredClass: MAG,
+  },
+  fen_reaver_glaive: {
+    id: 'fen_reaver_glaive',
+    name: 'Fen Reaver Glaive',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'rare',
+    weapon: { min: 16, max: 26, speed: 2.4 },
+    stats: { str: 5, sta: 3 },
+    sellValue: 1400,
+    requiredClass: WAR,
+  },
+  nhalias_dirgeblade: {
+    id: 'nhalias_dirgeblade',
+    name: "Nhalia's Dirgeblade",
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'rare',
+    weapon: { min: 10, max: 16, speed: 1.7, dagger: true },
+    stats: { agi: 6, sta: 3 },
+    sellValue: 1400,
+    requiredClass: ROG,
+  },
+  mirejaw_oracle_staff: {
+    id: 'mirejaw_oracle_staff',
+    name: 'Mirejaw Oracle Staff',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'rare',
+    weapon: { min: 16, max: 27, speed: 3.0 },
+    stats: { int: 6, spi: 3, sta: 2 },
+    sellValue: 1400,
+    requiredClass: CASTER_WEAPON_CLASSES,
+  },
+  // --- Sunken Bastion blues (rare) ---
+  mistcallers_edge: {
+    id: 'mistcallers_edge',
+    name: "Fogbinder's Edge",
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'rare',
+    weapon: { min: 14, max: 23, speed: 2.3 },
+    stats: { str: 4, sta: 3 },
+    sellValue: 1200,
+    requiredClass: WAR,
+  },
+  vaels_mist_staff: {
+    id: 'vaels_mist_staff',
+    name: "Vael's Mist-Staff",
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'rare',
+    weapon: { min: 15, max: 26, speed: 3.0 },
+    stats: { int: 6, spi: 3, sta: 3 },
+    sellValue: 1200,
+    requiredClass: CASTER_WEAPON_CLASSES,
+  },
+  riptide_dirk: {
+    id: 'riptide_dirk',
+    name: 'Riptide Dirk',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'rare',
+    weapon: { min: 9, max: 15, speed: 1.7, dagger: true },
+    stats: { agi: 5, sta: 3 },
+    sellValue: 1200,
+    requiredClass: ROG,
+  },
+  knight_commanders_greaves: {
+    id: 'knight_commanders_greaves',
+    name: "Knight-Commander's Greaves",
+    kind: 'armor',
+    armorType: 'cloth',
+    slot: 'legs',
+    quality: 'rare',
+    stats: { armor: 95, sta: 4 },
+    sellValue: 1000,
+  },
+  tidescale_vest: {
+    id: 'tidescale_vest',
+    name: 'Tidescale Vest',
+    kind: 'armor',
+    armorType: 'mail',
+    slot: 'chest',
+    quality: 'rare',
+    stats: { armor: 90, sta: 3, agi: 2 },
+    sellValue: 1100,
+  },
+  tideguard_greaves: {
+    id: 'tideguard_greaves',
+    name: 'Tideguard Greaves',
+    kind: 'armor',
+    armorType: 'mail',
+    slot: 'legs',
+    quality: 'rare',
+    stats: { armor: 125, str: 3, sta: 5 },
+    sellValue: 1100,
+    requiredClass: WAR,
+  },
+  tideguard_sabatons: {
+    id: 'tideguard_sabatons',
+    name: 'Tideguard Sabatons',
+    kind: 'armor',
+    armorType: 'mail',
+    slot: 'feet',
+    quality: 'rare',
+    stats: { armor: 105, str: 2, sta: 4 },
+    sellValue: 1100,
+    requiredClass: WAR,
+  },
+  drowned_prayer_leggings: {
+    id: 'drowned_prayer_leggings',
+    name: 'Drowned Prayer Leggings',
+    kind: 'armor',
+    armorType: 'cloth',
+    slot: 'legs',
+    quality: 'rare',
+    stats: { armor: 48, int: 6, spi: 4, sta: 3 },
+    sellValue: 1100,
+    requiredClass: MAG,
+  },
+  drowned_prayer_sandals: {
+    id: 'drowned_prayer_sandals',
+    name: 'Drowned Prayer Sandals',
+    kind: 'armor',
+    armorType: 'cloth',
+    slot: 'feet',
+    quality: 'rare',
+    stats: { armor: 42, int: 5, spi: 3, sta: 2 },
+    sellValue: 1100,
+    requiredClass: MAG,
+  },
+  eelscale_leggings: {
+    id: 'eelscale_leggings',
+    name: 'Eelscale Leggings',
+    kind: 'armor',
+    armorType: 'leather',
+    slot: 'legs',
+    quality: 'rare',
+    stats: { armor: 86, agi: 6, sta: 3 },
+    sellValue: 1100,
+    requiredClass: ROG,
+  },
+  eelscale_treads: {
+    id: 'eelscale_treads',
+    name: 'Eelscale Treads',
+    kind: 'armor',
+    armorType: 'leather',
+    slot: 'feet',
+    quality: 'rare',
+    stats: { armor: 72, agi: 5, sta: 3 },
+    sellValue: 1100,
+    requiredClass: ROG,
+  },
+  // --- vendor food & drink (Provisioner Hale) ---
+  // Vendor food nerf (11n-D-13): crafted 243 tier (goldleaf_game_stew,
+  // fenbridge_rice_bowl, fenbridge_rice_pudding, ashwood_smoked_eel) / 1.10,
+  // bottom tercile, floored; crafted margin +10.5 percent.
+  fenbridge_rye: {
+    id: 'fenbridge_rye',
+    name: 'Fenbridge Rye Loaf',
+    kind: 'food',
+    quality: 'common',
+    foodHp: 220,
+    sellValue: 25,
+    buyValue: 400,
+  },
+  marsh_mint_tea: {
+    id: 'marsh_mint_tea',
+    name: 'Marsh Mint Tea',
+    kind: 'drink',
+    quality: 'common',
+    drinkMana: 288,
+    sellValue: 25,
+    buyValue: 400,
+  },
+  // Vendor food nerf (11n-D-13): crafted 432 tier (frostgill_chowder,
+  // fenbridge_beet_braise) / 1.15, the middle tercile's 15 percent margin,
+  // floored; crafted margin +15.2 percent.
+  smoked_eel: {
+    id: 'smoked_eel',
+    name: 'Smoked Mirefen Eel',
+    kind: 'food',
+    quality: 'common',
+    foodHp: 375,
+    sellValue: 60,
+    buyValue: 1000,
+  },
+  silvermist_cordial: {
+    id: 'silvermist_cordial',
+    name: 'Silvermist Cordial',
+    kind: 'drink',
+    quality: 'common',
+    drinkMana: 436,
+    sellValue: 60,
+    buyValue: 1000,
+  },
+  // --- vendor white gear (Provisioner Hale) ---
+  bogiron_mace: {
+    id: 'bogiron_mace',
+    name: 'Bogiron Mace',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'common',
+    weapon: { min: 8, max: 14, speed: 2.6 },
+    sellValue: 250,
+    buyValue: 2500,
+  },
+  fenreed_staff: {
+    id: 'fenreed_staff',
+    name: 'Fenreed Staff',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'common',
+    weapon: { min: 9, max: 16, speed: 3.0 },
+    stats: { int: 1 },
+    sellValue: 250,
+    buyValue: 2500,
+  },
+  mirefen_skinner: {
+    id: 'mirefen_skinner',
+    name: 'Mirefen Skinner',
+    kind: 'weapon',
+    slot: 'mainhand',
+    quality: 'common',
+    weapon: { min: 6, max: 10, speed: 1.8, dagger: true },
+    sellValue: 250,
+    buyValue: 2500,
+  },
+  bogiron_hauberk: {
+    id: 'bogiron_hauberk',
+    name: 'Bogiron Hauberk',
+    kind: 'armor',
+    armorType: 'mail',
+    slot: 'chest',
+    quality: 'common',
+    stats: { armor: 100 },
+    sellValue: 300,
+    buyValue: 3000,
+  },
+  marshcloth_robe: {
+    id: 'marshcloth_robe',
+    name: 'Marshcloth Robe',
+    kind: 'armor',
+    armorType: 'cloth',
+    slot: 'chest',
+    quality: 'common',
+    stats: { armor: 32 },
+    sellValue: 200,
+    buyValue: 2000,
+  },
+  reedwoven_jerkin: {
+    id: 'reedwoven_jerkin',
+    name: 'Reedwoven Jerkin',
+    kind: 'armor',
+    armorType: 'leather',
+    slot: 'chest',
+    quality: 'common',
+    stats: { armor: 62 },
+    sellValue: 250,
+    buyValue: 2500,
+  },
+  fenwalker_boots: {
+    id: 'fenwalker_boots',
+    name: 'Fenwalker Boots',
+    kind: 'armor',
+    armorType: 'leather',
+    slot: 'feet',
+    quality: 'common',
+    stats: { armor: 30 },
+    sellValue: 150,
+    buyValue: 1500,
+  },
+  reedwoven_trousers: {
+    id: 'reedwoven_trousers',
+    name: 'Reedwoven Trousers',
+    kind: 'armor',
+    armorType: 'leather',
+    slot: 'legs',
+    quality: 'common',
+    stats: { armor: 40 },
+    sellValue: 180,
+    buyValue: 1800,
+  },
+  // --- junk (gray) ---
+  bogiron_nugget: {
+    id: 'bogiron_nugget',
+    name: 'Bogiron Nugget',
+    kind: 'junk',
+    quality: 'poor',
+    sellValue: 12,
+  },
+  soggy_moccasin: {
+    id: 'soggy_moccasin',
+    name: 'Soggy Moccasin',
+    kind: 'junk',
+    quality: 'poor',
+    sellValue: 9,
+  },
+  cracked_fetish: {
+    id: 'cracked_fetish',
+    name: 'Cracked Fetish',
+    kind: 'junk',
+    quality: 'poor',
+    sellValue: 14,
+  },
+  chipped_tusk: {
+    id: 'chipped_tusk',
+    name: 'Chipped Tusk',
+    kind: 'junk',
+    quality: 'poor',
+    sellValue: 15,
+  },
+  deepfen_pearl: {
+    id: 'deepfen_pearl',
+    name: 'Deepfen Pearl',
+    kind: 'junk',
+    quality: 'poor',
+    sellValue: 600,
+  },
+  // --- Class/spec gap fill (uncommon/green leveling pieces) ---
+  // Budgeted via primaryStatBudget(item level, uncommon, slot); see
+  // src/sim/item_budget.ts. The leather int/spi pieces continue the druid
+  // caster line, the mail int/spi pieces the shaman/paladin caster line, and
+  // the druid-locked two-hander is the second rung of the feral weapon ladder
+  // (a bespoke druid-only lock: weaponArchetypeForItem returns null for it and
+  // canEquipItem falls through to the literal list, src/sim/equipment_rules.ts).
+  fenbark_leggings: {
+    id: 'fenbark_leggings',
+    name: 'Fenbark Leggings',
+    kind: 'armor',
+    armorType: 'leather',
+    slot: 'legs',
+    quality: 'uncommon',
+    // Sableweb Widows (level 10) -> item level 11, legs budget 4.
+    stats: { armor: 48, int: 3, spi: 1, sta: 1 },
+    sellValue: 320,
+  },
+  mirebloom_treads: {
+    id: 'mirebloom_treads',
+    name: 'Mirebloom Treads',
+    kind: 'armor',
+    armorType: 'leather',
+    slot: 'feet',
+    quality: 'uncommon',
+    // Mirejaw the Ravenous (level 10 rare elite) -> item level 11, feet budget 3.
+    stats: { armor: 28, int: 2, spi: 1, sta: 1 },
+    sellValue: 300,
+  },
+  fenwarden_sabatons: {
+    id: 'fenwarden_sabatons',
+    name: 'Fenwarden Sabatons',
+    kind: 'armor',
+    armorType: 'mail',
+    slot: 'feet',
+    quality: 'uncommon',
+    // Mirefen Broodmother (level 10 boss) -> item level 11, feet budget 3.
+    stats: { armor: 42, int: 2, spi: 1, sta: 1 },
+    sellValue: 310,
+  },
+  marshlight_hauberk: {
+    id: 'marshlight_hauberk',
+    name: 'Marshlight Hauberk',
+    kind: 'armor',
+    armorType: 'mail',
+    slot: 'chest',
+    quality: 'uncommon',
+    // Mirefen Trolls (level 12) -> item level 13, chest budget 5.
+    stats: { armor: 110, int: 3, spi: 2, sta: 2 },
+    sellValue: 380,
+  },
+  duskthorn_mantle: {
+    id: 'duskthorn_mantle',
+    name: 'Duskthorn Mantle',
+    kind: 'armor',
+    armorType: 'leather',
+    slot: 'shoulder',
+    quality: 'uncommon',
+    // Gravecaller Menders (level 12) -> item level 13, shoulder budget 4.
+    stats: { armor: 34, int: 3, spi: 1, sta: 1 },
+    sellValue: 340,
+  },
+  fenshadow_maul: {
+    id: 'fenshadow_maul',
+    name: 'Fenshadow Maul',
+    kind: 'weapon',
+    slot: 'mainhand',
+    hand: 'twohand',
+    quality: 'uncommon',
+    // Deacon Voss (level 12 boss; also the q_deacon druid reward) -> item level
+    // 13: 2H stat budget round(primaryStatBudget(13, uncommon, mainhand) = 5 x
+    // TWOHAND_STAT_MULT) = 7, dps on the weaponDpsBudget(13) x TWOHAND_DPS_MULT
+    // curve (~12.19 at speed 3.4).
+    weapon: { min: 35, max: 48, speed: 3.4 },
+    stats: { str: 3, agi: 2, sta: 2 },
+    sellValue: 420,
+    requiredClass: FERAL,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Static props (rendering + collision share this placement data)
+// ---------------------------------------------------------------------------
+
+export const ZONE2_PROPS: ZonePropsDef = {
+  buildings: FENBRIDGE_LAYOUT.buildings.map((building) => ({
+    id: building.id,
+    assetId: building.assetId,
+    kind: building.kind,
+    x: building.position.x,
+    z: building.position.z,
+    w: building.nativeDimensions.width,
+    d: building.nativeDimensions.depth,
+    rot: building.rotation,
+    height: building.nativeDimensions.height,
+  })),
+  wells: [
+    {
+      id: FENBRIDGE_LAYOUT.civic.cistern.id,
+      assetId: FENBRIDGE_LAYOUT.civic.cistern.assetId,
+      x: FENBRIDGE_LAYOUT.civic.cistern.position.x,
+      z: FENBRIDGE_LAYOUT.civic.cistern.position.z,
+      r: FENBRIDGE_LAYOUT.civic.cistern.radius,
+      height: FENBRIDGE_LAYOUT.civic.cistern.height,
+    },
+  ],
+  stalls: [
+    {
+      id: FENBRIDGE_LAYOUT.civic.provisionStall.id,
+      assetId: FENBRIDGE_LAYOUT.civic.provisionStall.assetId,
+      x: FENBRIDGE_LAYOUT.civic.provisionStall.position.x,
+      z: FENBRIDGE_LAYOUT.civic.provisionStall.position.z,
+      rot: FENBRIDGE_LAYOUT.civic.provisionStall.rotation,
+      r: Math.hypot(
+        FENBRIDGE_LAYOUT.civic.provisionStall.width / 2,
+        FENBRIDGE_LAYOUT.civic.provisionStall.depth / 2,
+      ),
+      w: FENBRIDGE_LAYOUT.civic.provisionStall.width,
+      d: FENBRIDGE_LAYOUT.civic.provisionStall.depth,
+      height: FENBRIDGE_LAYOUT.civic.provisionStall.height,
+    },
+  ],
+  mines: [],
+  // Everything beyond the town footprint is literal-preserved in the layout
+  // inventory so a civic rebuild cannot perturb Mirefen's remote landmarks.
+  docks: FENBRIDGE_LAYOUT.preservedProps.docks.map((dock) => ({
+    ...dock,
+    hutLocal: { ...dock.hutLocal },
+  })),
+  tents: FENBRIDGE_LAYOUT.preservedProps.tents.map((tent) => ({ ...tent })),
+  marshReeds: FENBRIDGE_LAYOUT.preservedProps.marshReeds.map(([x, z]): [number, number] => [x, z]),
+  crates: FENBRIDGE_LAYOUT.preservedProps.crates.map(([x, z]): [number, number] => [x, z]),
+  campfires: FENBRIDGE_LAYOUT.preservedProps.campfires.map(([x, z]): [number, number] => [x, z]),
+  mudHuts: FENBRIDGE_LAYOUT.preservedProps.mudHuts.map(([x, z]): [number, number] => [x, z]),
+  ruinRings: FENBRIDGE_LAYOUT.preservedProps.ruinRings.map((ring) => ({ ...ring })),
+  fences: [],
+  // Fenbridge stands open: no palisade (fenbridge_layout.ts).
+  walls: [],
+  graveyards: [{ ...FENBRIDGE_LAYOUT.services.graveyard.position }],
+};

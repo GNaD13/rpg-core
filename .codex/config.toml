@@ -1,0 +1,7 @@
+# Project guidance only; inherit model, effort, permissions and provider from session.
+project_doc_fallback_filenames = ["CLAUDE.md"]
+project_doc_max_bytes = 65536
+
+[agents]
+max_threads = 4
+max_depth = 1

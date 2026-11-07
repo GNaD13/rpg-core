@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rpg_admin
+      POSTGRES_DB: rpg_core
+      POSTGRES_PASSWORD: ${RPG_POSTGRES_PASSWORD:?Run node scripts/local-env.mjs first}
+    ports:
+      - "127.0.0.1:${RPG_DB_PORT:-55482}:5432"
+    volumes:
+      - rpg_core_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rpg_admin -d rpg_core"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+volumes:
+  rpg_core_pgdata:
